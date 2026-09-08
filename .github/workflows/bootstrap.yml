@@ -9,12 +9,12 @@ permissions:
 
 jobs:
   import:
-    if: ${{ github.event.head_commit.message == 'Bootstrap full ByteBitShop 1.0.2 source' }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Import complete source tree
         run: |
+          test -f .bootstrap/source.tar.xz
           tar -xJf .bootstrap/source.tar.xz -C .
           rm -rf .bootstrap
           rm -f .github/workflows/bootstrap.yml
