@@ -1,0 +1,9 @@
+{
+  "uuid": "%uuid%",
+  "name": "ByteBitShop",
+  "mainClass": "net.minedevhd.bytebitshop.ByteBitShopAddon",
+  "description": "Eigenständige Byte & Bit Botshop-GUI mit Suche, Kategorien, Warenkorb und Checkout.",
+  "version": 3,
+  "author": "MineDev_HD",
+  "category": 2
+}

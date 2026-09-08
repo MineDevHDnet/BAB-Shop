@@ -1,0 +1,43 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { name = 'forge'; url = 'https://maven.minecraftforge.net/' }
+    }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT' }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = '1.0.2'
+group = 'net.minedevhd.bytebitshop'
+archivesBaseName = 'ByteBitShop'
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+minecraft {
+    version = '1.8.9-11.15.1.2318-1.8.9'
+    runDir = 'run'
+    mappings = 'stable_22'
+}
+
+sourceSets {
+    main {
+        java { srcDirs = ['src/main/java', 'src/labystubs/java'] }
+        resources { srcDirs = ['src/main/resources'] }
+    }
+}
+
+jar {
+    baseName = 'ByteBitShop'
+    version = '1.0.2'
+    exclude 'net/labymod/**'
+    manifest {
+        attributes(
+            'Implementation-Title': 'ByteBitShop',
+            'Implementation-Version': version,
+            'Implementation-Vendor': 'MineDev_HD'
+        )
+    }
+}
+
+reobf { jar { useNotchSrg() } }
