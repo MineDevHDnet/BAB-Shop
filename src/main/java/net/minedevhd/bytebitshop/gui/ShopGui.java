@@ -23,13 +23,30 @@ import org.lwjgl.input.Mouse;
 
 public final class ShopGui extends GuiScreen {
     private static final DecimalFormat PRICE = new DecimalFormat("#,##0.00", DecimalFormatSymbols.getInstance(Locale.GERMAN));
-    private static final int HEADER_H = 48;
-    private static final int SIDEBAR_W = 110;
-    private static final int CART_W = 216;
-    private static final int CARD_H = 64;
-    private static final int GUI_MAX_W = 760;
-    private static final int GUI_MAX_H = 420;
-    private static final int GUI_MARGIN = 12;
+
+    private static final int TOPBAR_H = 62;
+    private static final int CATEGORY_H = 40;
+    private static final int CARD_H = 84;
+    private static final int GUI_MAX_W = 900;
+    private static final int GUI_MAX_H = 500;
+    private static final int GUI_MARGIN = 10;
+    private static final int PAD = 14;
+
+    private static final int BG_TOP = 0xFF090B0E;
+    private static final int BG_BOTTOM = 0xFF12151A;
+    private static final int SURFACE = 0xFF14171C;
+    private static final int SURFACE_2 = 0xFF1A1E24;
+    private static final int SURFACE_3 = 0xFF20252C;
+    private static final int BORDER = 0xFF2C323A;
+    private static final int BORDER_SOFT = 0xFF23282F;
+    private static final int TEXT = 0xFFF3F5F7;
+    private static final int MUTED = 0xFF8D959F;
+    private static final int ACCENT = 0xFFD9475B;
+    private static final int ACCENT_HOVER = 0xFFE65A6D;
+    private static final int ACCENT_DARK = 0xFF5A202A;
+    private static final int SUCCESS = 0xFF58B67A;
+    private static final int WARNING = 0xFFE7B85C;
+    private static final int DANGER = 0xFFE06666;
 
     private final ByteBitShopCore core;
     private final ShopBot bot;
@@ -40,12 +57,15 @@ public final class ShopGui extends GuiScreen {
     private GuiTextField search;
     private int searchX;
     private int searchY;
+    private int searchWidth;
     private int guiLeft;
     private int guiTop;
     private int guiRight;
     private int guiBottom;
     private int guiWidth;
     private int guiHeight;
+    private int cartWidth;
+
     private Category category = Category.ALL;
     private int productScroll;
     private int cartScroll;
@@ -63,22 +83,27 @@ public final class ShopGui extends GuiScreen {
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
+
         guiWidth = Math.max(1, Math.min(GUI_MAX_W, width - GUI_MARGIN * 2));
         guiHeight = Math.max(1, Math.min(GUI_MAX_H, height - GUI_MARGIN * 2));
         guiLeft = (width - guiWidth) / 2;
         guiTop = (height - guiHeight) / 2;
         guiRight = guiLeft + guiWidth;
         guiBottom = guiTop + guiHeight;
+        cartWidth = guiWidth < 720 ? 198 : 232;
 
-        int mainLeft = guiLeft + SIDEBAR_W + 14;
-        int mainRight = guiRight - CART_W - 14;
-        int searchWidth = Math.max(100, Math.min(238, mainRight - mainLeft - 96));
-        searchX = mainLeft;
-        searchY = guiTop + 14;
+        int storeRight = guiRight - cartWidth;
+        int brandWidth = Math.max(148, Math.min(210, guiWidth / 4));
+        int refreshWidth = guiWidth < 720 ? 78 : 94;
+
+        searchX = guiLeft + brandWidth;
+        searchY = guiTop + 21;
+        searchWidth = Math.max(108, storeRight - PAD - refreshWidth - 10 - searchX);
         search = new GuiTextField(1, fontRendererObj, searchX, searchY, searchWidth, 20);
         search.setMaxStringLength(80);
         search.setEnableBackgroundDrawing(true);
-        search.setTextColor(0xF2F5F7);
+        search.setTextColor(0xFFF2F5F7);
+
         rebuildFilter();
     }
 
@@ -95,44 +120,57 @@ public final class ShopGui extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         hits.clear();
-        drawGradientRect(0, 0, width, height, 0xFF080607, 0xFF12090C);
-        drawRect(guiLeft - 1, guiTop - 1, guiRight + 1, guiBottom + 1, 0xFF4A1B24);
-        drawRect(guiLeft, guiTop, guiRight, guiBottom, 0xFF120A0D);
-        drawRect(guiLeft, guiTop, guiRight, guiTop + HEADER_H, 0xF0180B0F);
-        drawRect(guiLeft, guiTop + HEADER_H, guiLeft + SIDEBAR_W, guiBottom, 0xE0140A0D);
-        drawRect(guiRight - CART_W, guiTop + HEADER_H, guiRight, guiBottom, 0xF012090C);
-        drawRect(guiLeft + SIDEBAR_W, guiTop + HEADER_H, guiLeft + SIDEBAR_W + 1, guiBottom, 0xFF4A2229);
-        drawRect(guiRight - CART_W - 1, guiTop + HEADER_H, guiRight - CART_W, guiBottom, 0xFF4A2229);
+
+        drawGradientRect(0, 0, width, height, BG_TOP, BG_BOTTOM);
+        drawRect(guiLeft - 4, guiTop + 3, guiRight + 4, guiBottom + 5, 0x50000000);
+        drawRect(guiLeft - 1, guiTop - 1, guiRight + 1, guiBottom + 1, BORDER);
+        drawRect(guiLeft, guiTop, guiRight, guiBottom, SURFACE);
+
+        int cartLeft = guiRight - cartWidth;
+        drawRect(guiLeft, guiTop, guiRight, guiTop + TOPBAR_H, 0xFF111419);
+        drawRect(guiLeft, guiTop + TOPBAR_H - 1, guiRight, guiTop + TOPBAR_H, BORDER);
+        drawRect(cartLeft, guiTop + TOPBAR_H, guiRight, guiBottom, 0xFF111419);
+        drawRect(cartLeft - 1, guiTop + TOPBAR_H, cartLeft, guiBottom, BORDER);
 
         drawHeader(mouseX, mouseY);
-        drawSidebar(mouseX, mouseY);
+        drawCategoryBar(mouseX, mouseY);
         drawProducts(mouseX, mouseY);
         drawCart(mouseX, mouseY);
 
-        if (selected != null) drawProductModal(mouseX, mouseY);
-        else if (confirmCheckout) drawCheckoutModal(mouseX, mouseY);
+        if (selected != null) {
+            drawProductModal(mouseX, mouseY);
+        } else if (confirmCheckout) {
+            drawCheckoutModal(mouseX, mouseY);
+        }
 
         if (toast != null && System.currentTimeMillis() < toastUntil) {
-            int w = fontRendererObj.getStringWidth(toast) + 24;
-            int x = (width - w) / 2;
-            int toastY = Math.min(height - 34, guiBottom - 32);
-            drawRect(x, toastY, x + w, toastY + 22, 0xEE321018);
-            drawCenteredString(fontRendererObj, toast, width / 2, toastY + 7, 0xF5F7FA);
+            int toastW = Math.min(guiWidth - 40, fontRendererObj.getStringWidth(toast) + 34);
+            int toastX = guiLeft + (guiWidth - toastW) / 2;
+            int toastY = guiBottom - 36;
+            panel(toastX, toastY, toastW, 24, 0xF022262C, ACCENT_DARK);
+            drawCenteredString(fontRendererObj, "§f" + trimToWidth(toast, toastW - 18), toastX + toastW / 2, toastY + 8, TEXT);
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
     private void drawHeader(int mouseX, int mouseY) {
-        fontRendererObj.drawString("§c§lBYTE & BIT", guiLeft + 12, guiTop + 10, 0xFFFFFF);
-        fontRendererObj.drawString("§7Shop: §f" + trim(bot.getName(), SIDEBAR_W - 18), guiLeft + 12, guiTop + 27, 0xFFFFFF);
+        int cartLeft = guiRight - cartWidth;
 
+        drawRect(guiLeft + 14, guiTop + 13, guiLeft + 18, guiTop + 47, ACCENT);
+        fontRendererObj.drawString("§f§lBYTE & BIT", guiLeft + 27, guiTop + 15, TEXT);
+        fontRendererObj.drawString("§7MARKETPLACE", guiLeft + 27, guiTop + 29, MUTED);
+        fontRendererObj.drawString("§8" + trim(bot.getName(), Math.max(70, searchX - guiLeft - 42)), guiLeft + 27, guiTop + 42, MUTED);
+
+        drawRect(searchX - 2, searchY - 2, searchX + searchWidth + 2, searchY + 22, BORDER_SOFT);
         search.drawTextBox();
-        if (search.getText().isEmpty() && !search.isFocused())
-            fontRendererObj.drawString("§8Items durchsuchen ...", searchX + 5, searchY + 6, 0xFFFFFF);
+        if (search.getText().isEmpty() && !search.isFocused()) {
+            fontRendererObj.drawString("§8Suche nach Item, Preis oder Inhalt ...", searchX + 5, searchY + 6, MUTED);
+        }
 
-        int x = guiRight - CART_W + 10;
-        button(x, guiTop + 13, 90, 22, "Aktualisieren", mouseX, mouseY, new Runnable() {
+        final int refreshW = guiWidth < 720 ? 78 : 94;
+        int refreshX = cartLeft - PAD - refreshW;
+        secondaryButton(refreshX, guiTop + 19, refreshW, 26, guiWidth < 720 ? "Refresh" : "Aktualisieren", mouseX, mouseY, new Runnable() {
             @Override public void run() {
                 toast("Shop wird aktualisiert ...");
                 core.getRegistry().ensureSynced(bot, true, new Runnable() {
@@ -143,61 +181,78 @@ public final class ShopGui extends GuiScreen {
                 });
             }
         });
+
+        int cartBadgeX = cartLeft + PAD;
+        int badgeY = guiTop + 16;
+        int badgeW = cartWidth - PAD * 2;
+        drawRect(cartBadgeX, badgeY, cartBadgeX + badgeW, badgeY + 30, SURFACE_2);
+        drawRect(cartBadgeX, badgeY, cartBadgeX + 3, badgeY + 30, ACCENT);
+        fontRendererObj.drawString("§f§lWARENKORB", cartBadgeX + 11, badgeY + 6, TEXT);
+        String itemText = cart.transactionCount() + " Pos.";
+        fontRendererObj.drawString("§8" + itemText, cartBadgeX + badgeW - 8 - fontRendererObj.getStringWidth(itemText), badgeY + 7, MUTED);
+        fontRendererObj.drawString("§7" + trimToWidth(formatPrice(cart.total()), badgeW - 20), cartBadgeX + 11, badgeY + 18, MUTED);
     }
 
-    private void drawSidebar(int mouseX, int mouseY) {
-        fontRendererObj.drawString("§7KATEGORIEN", guiLeft + 10, guiTop + HEADER_H + 11, 0xFFFFFF);
-        int y = guiTop + HEADER_H + 28;
-        for (final Category c : Category.values()) {
-            int count = countFor(c);
+    private void drawCategoryBar(int mouseX, int mouseY) {
+        int left = guiLeft + PAD;
+        int right = guiRight - cartWidth - PAD;
+        int top = guiTop + TOPBAR_H + 10;
+        int available = Math.max(1, right - left);
+        int gap = 5;
+        int count = Category.values().length;
+        int tabW = Math.max(42, (available - gap * (count - 1)) / count);
+
+        for (int i = 0; i < count; i++) {
+            final Category c = Category.values()[i];
+            int x = left + i * (tabW + gap);
+            int w = i == count - 1 ? Math.max(42, right - x) : tabW;
             boolean active = category == c;
-            int itemX = guiLeft + 7;
-            int itemW = SIDEBAR_W - 14;
-            boolean hover = inside(mouseX, mouseY, itemX, y, itemW, 26);
-            int color = active ? 0xFF501722 : (hover ? 0xFF2A151A : 0x00101010);
-            drawRect(itemX, y, itemX + itemW, y + 26, color);
-            if (active) drawRect(itemX, y, itemX + 3, y + 26, 0xFFE04458);
-            String countText = Integer.toString(count);
-            int countX = guiLeft + SIDEBAR_W - 13 - fontRendererObj.getStringWidth(countText);
-            String label = trimToWidth(c.label, Math.max(20, countX - (guiLeft + 14) - 5));
-            fontRendererObj.drawString(label, guiLeft + 14, y + 6, active ? 0xFFFFFF : 0xD7DCE2);
-            fontRendererObj.drawString(countText, countX, y + 6, 0x9A7F86);
-            final int fy = y;
-            hits.add(new HitBox(itemX, fy, itemW, 26, new Runnable() {
+            boolean hover = inside(mouseX, mouseY, x, top, w, 28);
+
+            int fill = active ? ACCENT_DARK : (hover ? SURFACE_3 : SURFACE_2);
+            int border = active ? ACCENT : BORDER_SOFT;
+            panel(x, top, w, 28, fill, border);
+
+            String label = c.label;
+            int categoryCount = countFor(c);
+            String countText = Integer.toString(categoryCount);
+            int countW = fontRendererObj.getStringWidth(countText);
+            int labelSpace = w - 18 - countW;
+            String shown = trimToWidth(label, Math.max(18, labelSpace));
+            fontRendererObj.drawString(active ? "§f" + shown : "§7" + shown, x + 8, top + 10, active ? TEXT : MUTED);
+            fontRendererObj.drawString(active ? "§f" + countText : "§8" + countText, x + w - 8 - countW, top + 10, active ? TEXT : MUTED);
+
+            final int fx = x;
+            final int fw = w;
+            hits.add(new HitBox(fx, top, fw, 28, new Runnable() {
                 @Override public void run() {
                     category = c;
                     productScroll = 0;
                     rebuildFilter();
                 }
             }));
-            y += 29;
-        }
-
-        int infoY = guiBottom - 42;
-        if (infoY > y + 4) {
-            fontRendererObj.drawString("§8Hotkey / /babshop", guiLeft + 10, infoY, 0xFFFFFF);
-            fontRendererObj.drawString("§8Standalone 1.0.2", guiLeft + 10, infoY + 13, 0xFFFFFF);
         }
     }
 
     private void drawProducts(int mouseX, int mouseY) {
-        int left = guiLeft + SIDEBAR_W + 14;
-        int right = guiRight - CART_W - 14;
-        int top = guiTop + HEADER_H + 12;
-        int bottom = guiBottom - 13;
+        int left = guiLeft + PAD;
+        int right = guiRight - cartWidth - PAD;
+        int top = guiTop + TOPBAR_H + CATEGORY_H + 8;
+        int bottom = guiBottom - PAD;
+
+        fontRendererObj.drawString("§f§lAngebote", left, top, TEXT);
+        String meta = filtered.size() + " von " + bot.getOffers().size();
+        fontRendererObj.drawString("§8" + meta, right - fontRendererObj.getStringWidth(meta), top, MUTED);
+        top += 19;
+
         int availableWidth = Math.max(120, right - left);
-        int columns = Math.max(1, availableWidth / 142);
-        int gap = 7;
+        int columns = availableWidth >= 430 ? 2 : 1;
+        int gap = 8;
         int cardW = (availableWidth - gap * (columns - 1)) / columns;
         int rowsVisible = Math.max(1, (bottom - top) / (CARD_H + gap));
         int totalRows = (filtered.size() + columns - 1) / columns;
         int maxScroll = Math.max(0, totalRows - rowsVisible);
         productScroll = clamp(productScroll, 0, maxScroll);
-
-        fontRendererObj.drawString("§f§lAngebote", left, top - 1, 0xFFFFFF);
-        String meta = filtered.size() + " Treffer";
-        fontRendererObj.drawString("§8" + meta, right - fontRendererObj.getStringWidth(meta), top - 1, 0xFFFFFF);
-        top += 17;
 
         int first = productScroll * columns;
         int capacity = (rowsVisible + 1) * columns;
@@ -211,25 +266,38 @@ public final class ShopGui extends GuiScreen {
             int col = relative % columns;
             int x = left + col * (cardW + gap);
             int y = top + row * (CARD_H + gap);
+
             if (y + CARD_H > bottom) continue;
 
             boolean hover = inside(mouseX, mouseY, x, y, cardW, CARD_H);
             boolean available = offer.isAvailable();
-            drawRect(x, y, x + cardW, y + CARD_H, hover ? 0xFF32171D : 0xFF211116);
-            drawRect(x, y, x + cardW, y + 2, available ? 0xFFE04458 : 0xFF5B4A4E);
+            int fill = hover ? 0xFF22272E : SURFACE_2;
+            int border = hover ? 0xFF3C444E : BORDER_SOFT;
+
+            panel(x, y, cardW, CARD_H, fill, border);
+            drawRect(x, y, x + 4, y + CARD_H, available ? ACCENT : 0xFF555B63);
 
             ItemStack stack = offer.getDisplayStack();
             if (stack != null) {
-                renderItem(stack, x + 10, y + 20, 1.25F);
+                drawRect(x + 13, y + 15, x + 49, y + 51, 0xFF111419);
+                renderItem(stack, x + 15, y + 17, 1.95F);
                 if (hover) hoverStack = stack;
             }
 
-            int textX = x + 39;
+            int textX = x + 61;
+            int contentRight = x + cardW - 10;
             String name = clean(offer.getDisplayName());
-            fontRendererObj.drawString("§f" + trimToWidth(name, cardW - 47), textX, y + 10, 0xFFFFFF);
-            fontRendererObj.drawString("§c" + formatPrice(offer.getPrice()), textX, y + 26, 0xFFFFFF);
+            fontRendererObj.drawString("§f§l" + trimToWidth(name, Math.max(40, contentRight - textX)), textX, y + 13, TEXT);
+
             String stock = stockText(offer);
-            fontRendererObj.drawString(stock, textX, y + 42, 0xFFFFFF);
+            fontRendererObj.drawString(stock, textX, y + 31, TEXT);
+
+            String price = formatPrice(offer.getPrice());
+            fontRendererObj.drawString("§f§l" + price, textX, y + 54, TEXT);
+
+            String details = "Details >";
+            fontRendererObj.drawString(hover ? "§f" + details : "§8" + details,
+                    contentRight - fontRendererObj.getStringWidth(details), y + 55, hover ? TEXT : MUTED);
 
             final int fx = x;
             final int fy = y;
@@ -242,132 +310,178 @@ public final class ShopGui extends GuiScreen {
         }
 
         if (filtered.isEmpty()) {
-            drawCenteredString(fontRendererObj, "§7Keine passenden Angebote gefunden.", (left + right) / 2, top + 50, 0xFFFFFF);
+            int emptyY = top + 38;
+            drawRect(left, emptyY, right, emptyY + 72, SURFACE_2);
+            drawCenteredString(fontRendererObj, "§fKeine passenden Angebote", (left + right) / 2, emptyY + 22, TEXT);
+            drawCenteredString(fontRendererObj, "§8Versuche eine andere Suche oder Kategorie.", (left + right) / 2, emptyY + 40, MUTED);
         }
 
         if (maxScroll > 0) {
-            int barX = right + 5;
+            int barX = right - 3;
             int barTop = top;
-            int barH = Math.max(40, bottom - top);
-            drawRect(barX, barTop, barX + 3, barTop + barH, 0xFF28161A);
-            int thumbH = Math.max(18, barH * rowsVisible / Math.max(rowsVisible, totalRows));
+            int barH = Math.max(44, bottom - top);
+            drawRect(barX, barTop, barX + 2, barTop + barH, BORDER_SOFT);
+            int thumbH = Math.max(22, barH * rowsVisible / Math.max(rowsVisible, totalRows));
             int thumbY = barTop + (barH - thumbH) * productScroll / maxScroll;
-            drawRect(barX, thumbY, barX + 3, thumbY + thumbH, 0xFFE04458);
+            drawRect(barX, thumbY, barX + 2, thumbY + thumbH, ACCENT);
         }
 
-        if (hoverStack != null && selected == null && !confirmCheckout && !Mouse.isButtonDown(0))
+        if (hoverStack != null && selected == null && !confirmCheckout && !Mouse.isButtonDown(0)) {
             renderToolTip(hoverStack, mouseX, mouseY);
+        }
     }
 
     private void drawCart(int mouseX, int mouseY) {
-        int x = guiRight - CART_W;
-        int innerX = x + 13;
-        int y = guiTop + HEADER_H + 12;
-        fontRendererObj.drawString("§f§lWarenkorb", innerX, y, 0xFFFFFF);
-        String count = cart.transactionCount() + " Kauf" + (cart.transactionCount() == 1 ? "" : "vorgänge");
-        fontRendererObj.drawString("§8" + count, guiRight - 11 - fontRendererObj.getStringWidth(count), y, 0xFFFFFF);
-        y += 19;
+        int x = guiRight - cartWidth;
+        int innerX = x + PAD;
+        int innerRight = guiRight - PAD;
+        int y = guiTop + TOPBAR_H + 13;
+
+        fontRendererObj.drawString("§f§lDeine Auswahl", innerX, y, TEXT);
+        String purchases = cart.transactionCount() + " Kauf" + (cart.transactionCount() == 1 ? "" : "vorgänge");
+        fontRendererObj.drawString("§8" + purchases, innerRight - fontRendererObj.getStringWidth(purchases), y, MUTED);
+        y += 20;
 
         List<ShoppingCart.Line> lines = cart.lines();
-        int listBottom = guiBottom - 96;
-        int rowH = 48;
+        int footerH = 112;
+        int listBottom = guiBottom - footerH - 6;
+        int rowH = 54;
         int visibleRows = Math.max(1, (listBottom - y) / rowH);
         int maxCartScroll = Math.max(0, lines.size() - visibleRows);
         cartScroll = clamp(cartScroll, 0, maxCartScroll);
 
         if (lines.isEmpty()) {
-            drawCenteredString(fontRendererObj, "§8Noch nichts ausgewählt", x + CART_W / 2, y + 30, 0xFFFFFF);
+            int emptyH = 76;
+            panel(innerX, y, innerRight - innerX, emptyH, SURFACE_2, BORDER_SOFT);
+            drawCenteredString(fontRendererObj, "§7Warenkorb ist leer", x + cartWidth / 2, y + 22, MUTED);
+            drawCenteredString(fontRendererObj, "§8Wähle links ein Angebot aus.", x + cartWidth / 2, y + 41, MUTED);
         }
 
         for (int i = cartScroll; i < lines.size() && i < cartScroll + visibleRows; i++) {
             final ShoppingCart.Line line = lines.get(i);
             int rowY = y + (i - cartScroll) * rowH;
-            drawRect(innerX, rowY, guiRight - 11, rowY + 42, 0xFF1D0F13);
-            ItemStack stack = line.offer.getDisplayStack();
-            if (stack != null) renderItem(stack, innerX + 7, rowY + 13, 0.95F);
 
-            final int minusX = guiRight - 53;
-            final int plusX = guiRight - 30;
-            int textWidth = Math.max(38, minusX - (innerX + 30) - 6);
+            panel(innerX, rowY, innerRight - innerX, 47, SURFACE_2, BORDER_SOFT);
+            ItemStack stack = line.offer.getDisplayStack();
+            if (stack != null) renderItem(stack, innerX + 7, rowY + 15, 1.0F);
+
+            final int minusX = innerRight - 47;
+            final int plusX = innerRight - 23;
+            int textX = innerX + 29;
+            int textWidth = Math.max(34, minusX - textX - 6);
+
             String name = clean(line.offer.getDisplayName());
-            fontRendererObj.drawString("§f" + trimToWidth(name, textWidth), innerX + 30, rowY + 7, 0xFFFFFF);
-            fontRendererObj.drawString("§8" + line.quantity + " × §c" + trimToWidth(formatPrice(line.offer.getPrice()), textWidth), innerX + 30, rowY + 23, 0xFFFFFF);
-            smallButton(minusX, rowY + 13, "−", mouseX, mouseY, new Runnable() {
+            fontRendererObj.drawString("§f" + trimToWidth(name, textWidth), textX, rowY + 8, TEXT);
+            String linePrice = line.quantity + " x " + formatPrice(line.offer.getPrice());
+            fontRendererObj.drawString("§8" + trimToWidth(linePrice, textWidth), textX, rowY + 25, MUTED);
+
+            smallButton(minusX, rowY + 12, "-", mouseX, mouseY, new Runnable() {
                 @Override public void run() { cart.add(line.offer, -1); }
             });
-            smallButton(plusX, rowY + 13, "+", mouseX, mouseY, new Runnable() {
+            smallButton(plusX, rowY + 12, "+", mouseX, mouseY, new Runnable() {
                 @Override public void run() {
                     if (!cart.add(line.offer, 1)) toast("Nicht genug Lagerbestand");
                 }
             });
         }
 
-        int footerY = guiBottom - 86;
-        drawRect(x, footerY, guiRight, footerY + 1, 0xFF4A2229);
-        fontRendererObj.drawString("§7Summe", innerX, footerY + 13, 0xFFFFFF);
+        int footerY = guiBottom - footerH;
+        drawRect(x, footerY, guiRight, footerY + 1, BORDER);
+        fontRendererObj.drawString("§8GESAMT", innerX, footerY + 14, MUTED);
+
         String total = formatPrice(cart.total());
-        fontRendererObj.drawString("§f§l" + total, guiRight - 11 - fontRendererObj.getStringWidth(total), footerY + 13, 0xFFFFFF);
-        fontRendererObj.drawString("§8" + cart.transactionCount() + " einzelne /pay-Zahlung(en)", innerX, footerY + 31, 0xFFFFFF);
+        fontRendererObj.drawString("§f§l" + total, innerRight - fontRendererObj.getStringWidth(total), footerY + 13, TEXT);
+        fontRendererObj.drawString("§8" + cart.transactionCount() + " Zahlung(en) · 2,5 s Abstand", innerX, footerY + 32, MUTED);
 
         boolean canCheckout = !cart.isEmpty() && cart.transactionCount() <= 128 && !core.getPaymentQueue().isBusy();
-        final int buttonY = footerY + 51;
+        final int buttonY = footerY + 54;
+
         if (canCheckout) {
-            button(innerX, buttonY, CART_W - 26, 30, "Checkout", mouseX, mouseY, new Runnable() {
+            primaryButton(innerX, buttonY, innerRight - innerX, 32, "Zur Kasse", mouseX, mouseY, new Runnable() {
                 @Override public void run() { confirmCheckout = true; }
             });
         } else {
-            drawRect(innerX, buttonY, guiRight - 11, buttonY + 28, 0xFF29161A);
-            String text = core.getPaymentQueue().isBusy() ? "Checkout läuft ..." : (cart.transactionCount() > 128 ? "Max. 128 Zahlungen" : "Warenkorb leer");
-            drawCenteredString(fontRendererObj, "§8" + text, x + CART_W / 2, buttonY + 10, 0xFFFFFF);
+            drawRect(innerX, buttonY, innerRight, buttonY + 32, 0xFF1C2026);
+            drawRect(innerX, buttonY, innerX + 3, buttonY + 32, 0xFF4A5058);
+            String text = core.getPaymentQueue().isBusy()
+                    ? "Checkout läuft ..."
+                    : (cart.transactionCount() > 128 ? "Max. 128 Zahlungen" : "Noch nichts ausgewählt");
+            drawCenteredString(fontRendererObj, "§8" + text, x + cartWidth / 2, buttonY + 12, MUTED);
         }
+
+        String hint = "ESC schließen · /babshop cancel";
+        drawCenteredString(fontRendererObj, "§8" + trimToWidth(hint, cartWidth - PAD * 2), x + cartWidth / 2, guiBottom - 17, MUTED);
     }
 
     private void drawProductModal(int mouseX, int mouseY) {
         hits.add(new HitBox(0, 0, width, height, new Runnable() { @Override public void run() {} }));
-        drawRect(0, 0, width, height, 0xA8000000);
-        int w = Math.min(380, guiWidth - 34);
-        int h = Math.min(232, guiHeight - 34);
+        drawRect(0, 0, width, height, 0xB5000000);
+
+        int w = Math.min(430, guiWidth - 34);
+        int h = Math.min(270, guiHeight - 34);
         int x = guiLeft + (guiWidth - w) / 2;
         int y = guiTop + (guiHeight - h) / 2;
-        drawRect(x, y, x + w, y + h, 0xFF1B0D11);
-        drawRect(x, y, x + w, y + 3, 0xFFE04458);
+
+        panel(x, y, w, h, SURFACE, BORDER);
+        drawRect(x, y, x + w, y + 4, ACCENT);
 
         ItemStack stack = selected.getDisplayStack();
-        if (stack != null) renderItem(stack, x + 24, y + 28, 2.0F);
-        fontRendererObj.drawString("§f§l" + trimToWidth(clean(selected.getDisplayName()), w - 105), x + 78, y + 24, 0xFFFFFF);
-        fontRendererObj.drawString("§c§l" + formatPrice(selected.getPrice()) + " §7pro Kauf", x + 78, y + 43, 0xFFFFFF);
-        fontRendererObj.drawString(stockText(selected), x + 78, y + 60, 0xFFFFFF);
+        int previewX = x + 22;
+        int previewY = y + 24;
+        panel(previewX, previewY, 74, 74, 0xFF101318, BORDER_SOFT);
+        if (stack != null) renderItem(stack, previewX + 20, previewY + 20, 2.15F);
 
-        int componentY = y + 88;
-        fontRendererObj.drawString("§7Du erhältst pro Zahlung:", x + 22, componentY, 0xFFFFFF);
-        componentY += 16;
+        int infoX = x + 114;
+        int infoRight = x + w - 22;
+        fontRendererObj.drawString("§f§l" + trimToWidth(clean(selected.getDisplayName()), infoRight - infoX), infoX, y + 27, TEXT);
+        fontRendererObj.drawString("§8Angebot von §f" + trimToWidth(bot.getName(), infoRight - infoX - 68), infoX, y + 45, MUTED);
+
+        String price = formatPrice(selected.getPrice());
+        fontRendererObj.drawString("§f§l" + price, infoX, y + 68, TEXT);
+        fontRendererObj.drawString("§8pro Zahlung", infoX + fontRendererObj.getStringWidth(price) + 7, y + 69, MUTED);
+        fontRendererObj.drawString(stockText(selected), infoX, y + 86, TEXT);
+
+        int componentTop = y + 115;
+        int componentH = Math.max(58, h - 190);
+        panel(x + 22, componentTop, w - 44, componentH, SURFACE_2, BORDER_SOFT);
+        fontRendererObj.drawString("§8DU ERHÄLTST PRO ZAHLUNG", x + 34, componentTop + 11, MUTED);
+
+        int componentY = componentTop + 29;
         int shown = 0;
         for (ShopComponent component : selected.getComponents()) {
-            if (shown >= 5) break;
+            if (shown >= 4) break;
             ItemStack componentStack = component.getStack();
-            String line = "§f" + componentStack.stackSize + "× §7" + clean(componentStack.getDisplayName());
-            fontRendererObj.drawString(trimToWidth(line, w - 44), x + 28, componentY, 0xFFFFFF);
+            String line = "§f" + componentStack.stackSize + "x §7" + clean(componentStack.getDisplayName());
+            fontRendererObj.drawString(trimToWidth(line, w - 70), x + 34, componentY, TEXT);
             componentY += 13;
             shown++;
         }
-        if (selected.getComponents().size() > shown)
-            fontRendererObj.drawString("§8+ " + (selected.getComponents().size() - shown) + " weitere Komponente(n)", x + 28, componentY, 0xFFFFFF);
 
-        int controlsY = y + h - 57;
-        fontRendererObj.drawString("§7Menge", x + 22, controlsY + 8, 0xFFFFFF);
-        smallButton(x + 72, controlsY, "−", mouseX, mouseY, new Runnable() {
+        if (selected.getComponents().size() > shown) {
+            fontRendererObj.drawString("§8+ " + (selected.getComponents().size() - shown) + " weitere Komponente(n)", x + 34, componentY, MUTED);
+        }
+
+        int controlsY = y + h - 51;
+        fontRendererObj.drawString("§8MENGE", x + 22, controlsY + 10, MUTED);
+
+        smallButton(x + 74, controlsY + 1, "-", mouseX, mouseY, new Runnable() {
             @Override public void run() { selectedQty = Math.max(1, selectedQty - 1); }
         });
-        drawRect(x + 98, controlsY, x + 138, controlsY + 24, 0xFF12080B);
-        drawCenteredString(fontRendererObj, "§f" + selectedQty, x + 118, controlsY + 8, 0xFFFFFF);
-        smallButton(x + 142, controlsY, "+", mouseX, mouseY, new Runnable() {
+
+        panel(x + 99, controlsY + 1, 44, 24, 0xFF101318, BORDER_SOFT);
+        drawCenteredString(fontRendererObj, "§f" + selectedQty, x + 121, controlsY + 9, TEXT);
+
+        smallButton(x + 148, controlsY + 1, "+", mouseX, mouseY, new Runnable() {
             @Override public void run() { selectedQty = Math.min(64, selectedQty + 1); }
         });
 
-        button(x + w - 190, controlsY - 2, 76, 28, "Zurück", mouseX, mouseY, new Runnable() {
+        int cancelW = 78;
+        int addW = 108;
+        secondaryButton(x + w - 22 - addW - 8 - cancelW, controlsY - 1, cancelW, 28, "Zurück", mouseX, mouseY, new Runnable() {
             @Override public void run() { selected = null; }
         });
-        button(x + w - 108, controlsY - 2, 86, 28, "Hinzufügen", mouseX, mouseY, new Runnable() {
+
+        primaryButton(x + w - 22 - addW, controlsY - 1, addW, 28, "Hinzufügen", mouseX, mouseY, new Runnable() {
             @Override public void run() {
                 if (!selected.isAvailable()) {
                     toast("Dieses Angebot ist ausverkauft");
@@ -385,25 +499,44 @@ public final class ShopGui extends GuiScreen {
 
     private void drawCheckoutModal(int mouseX, int mouseY) {
         hits.add(new HitBox(0, 0, width, height, new Runnable() { @Override public void run() {} }));
-        drawRect(0, 0, width, height, 0xA8000000);
-        int w = Math.min(350, guiWidth - 34);
-        int h = Math.min(174, guiHeight - 28);
+        drawRect(0, 0, width, height, 0xB5000000);
+
+        int w = Math.min(390, guiWidth - 34);
+        int h = Math.min(218, guiHeight - 30);
         int x = guiLeft + (guiWidth - w) / 2;
         int y = guiTop + (guiHeight - h) / 2;
-        drawRect(x, y, x + w, y + h, 0xFF1B0D11);
-        drawRect(x, y, x + w, y + 3, 0xFFE04458);
 
-        drawCenteredString(fontRendererObj, "§f§lCheckout bestätigen", width / 2, y + 22, 0xFFFFFF);
-        drawCenteredString(fontRendererObj, "§7Bot: §f" + bot.getName(), width / 2, y + 46, 0xFFFFFF);
-        drawCenteredString(fontRendererObj, "§7Summe: §c§l" + formatPrice(cart.total()), width / 2, y + 62, 0xFFFFFF);
-        drawCenteredString(fontRendererObj, "§7Zahlungen: §f" + cart.transactionCount(), width / 2, y + 80, 0xFFFFFF);
-        drawCenteredString(fontRendererObj, "§8Jede /pay-Zahlung hat 2,5 Sekunden Abstand.", width / 2, y + 100, 0xFFFFFF);
+        panel(x, y, w, h, SURFACE, BORDER);
+        drawRect(x, y, x + w, y + 4, ACCENT);
+
+        drawCenteredString(fontRendererObj, "§f§lCheckout bestätigen", width / 2, y + 24, TEXT);
+        drawCenteredString(fontRendererObj, "§8Prüfe deinen Einkauf vor dem Start.", width / 2, y + 42, MUTED);
+
+        int summaryX = x + 28;
+        int summaryY = y + 67;
+        int summaryW = w - 56;
+        panel(summaryX, summaryY, summaryW, 72, SURFACE_2, BORDER_SOFT);
+
+        fontRendererObj.drawString("§8SHOP", summaryX + 12, summaryY + 11, MUTED);
+        String botName = trimToWidth(bot.getName(), summaryW - 96);
+        fontRendererObj.drawString("§f" + botName, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(botName), summaryY + 11, TEXT);
+
+        fontRendererObj.drawString("§8ZAHLUNGEN", summaryX + 12, summaryY + 29, MUTED);
+        String transactions = Integer.toString(cart.transactionCount());
+        fontRendererObj.drawString("§f" + transactions, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(transactions), summaryY + 29, TEXT);
+
+        fontRendererObj.drawString("§8SUMME", summaryX + 12, summaryY + 47, MUTED);
+        String total = formatPrice(cart.total());
+        fontRendererObj.drawString("§f§l" + total, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(total), summaryY + 47, TEXT);
+
+        drawCenteredString(fontRendererObj, "§8Jede /pay-Zahlung wird mit 2,5 Sekunden Abstand gesendet.", width / 2, y + 151, MUTED);
 
         int modalButtonY = y + h - 40;
-        button(x + 32, modalButtonY, 112, 28, "Abbrechen", mouseX, mouseY, new Runnable() {
+        secondaryButton(x + 28, modalButtonY, 112, 28, "Abbrechen", mouseX, mouseY, new Runnable() {
             @Override public void run() { confirmCheckout = false; }
         });
-        button(x + w - 144, modalButtonY, 112, 28, "Jetzt kaufen", mouseX, mouseY, new Runnable() {
+
+        primaryButton(x + w - 140, modalButtonY, 112, 28, "Jetzt kaufen", mouseX, mouseY, new Runnable() {
             @Override public void run() { doCheckout(); }
         });
     }
@@ -453,17 +586,21 @@ public final class ShopGui extends GuiScreen {
         String name = clean(offer.getDisplayName()).toLowerCase(Locale.ROOT);
         if (name.contains(query)) return true;
         if (offer.getPrice().toPlainString().contains(query.replace(',', '.'))) return true;
+
         for (ShopComponent component : offer.getComponents()) {
             ItemStack stack = component.getStack();
             String original = clean(stack.getDisplayName()).toLowerCase(Locale.ROOT);
             if (original.contains(query)) return true;
+
             try {
                 if (stack.getUnlocalizedName().toLowerCase(Locale.ROOT).contains(query)) return true;
             } catch (Exception ignored) {}
+
             if (stack.hasTagCompound() && stack.getTagCompound().hasKey("display", 10)) {
                 List<String> lore = stack.getTooltip(mc.thePlayer, false);
-                for (String line : lore)
+                for (String line : lore) {
                     if (clean(line).toLowerCase(Locale.ROOT).contains(query)) return true;
+                }
             }
         }
         return false;
@@ -471,29 +608,35 @@ public final class ShopGui extends GuiScreen {
 
     private boolean matchesCategory(ShopOffer offer, Category wanted) {
         if (wanted == Category.ALL) return true;
+
         ItemStack stack = offer.getDisplayStack();
         if (stack == null) return wanted == Category.OTHER;
+
         String key = (stack.getUnlocalizedName() + " " + clean(stack.getDisplayName())).toLowerCase(Locale.ROOT);
 
         Category actual;
-        if (containsAny(key, "redstone", "repeater", "comparator", "hopper", "piston", "lever", "button", "pressure", "observer", "dispenser", "dropper"))
+        if (containsAny(key, "redstone", "repeater", "comparator", "hopper", "piston", "lever", "button", "pressure", "observer", "dispenser", "dropper")) {
             actual = Category.REDSTONE;
-        else if (containsAny(key, "sword", "pickaxe", "axe", "shovel", "hoe", "helmet", "chestplate", "leggings", "boots", "shears", "bow", "fishing"))
+        } else if (containsAny(key, "sword", "pickaxe", "axe", "shovel", "hoe", "helmet", "chestplate", "leggings", "boots", "shears", "bow", "fishing")) {
             actual = Category.TOOLS;
-        else if (containsAny(key, "apple", "bread", "potato", "carrot", "beef", "pork", "chicken", "fish", "melon", "cookie", "cake", "food"))
+        } else if (containsAny(key, "apple", "bread", "potato", "carrot", "beef", "pork", "chicken", "fish", "melon", "cookie", "cake", "food")) {
             actual = Category.FOOD;
-        else if (containsAny(key, "flower", "sapling", "leaves", "wool", "glass", "carpet", "banner", "skull", "painting", "frame", "torch", "fence"))
+        } else if (containsAny(key, "flower", "sapling", "leaves", "wool", "glass", "carpet", "banner", "skull", "painting", "frame", "torch", "fence")) {
             actual = Category.DECO;
-        else if (key.startsWith("tile.") || containsAny(key, "stone", "dirt", "sand", "brick", "planks", "log", "ore", "block"))
+        } else if (key.startsWith("tile.") || containsAny(key, "stone", "dirt", "sand", "brick", "planks", "log", "ore", "block")) {
             actual = Category.BLOCKS;
-        else
+        } else {
             actual = Category.OTHER;
+        }
+
         return actual == wanted;
     }
 
     private int countFor(Category c) {
         int count = 0;
-        for (ShopOffer offer : bot.getOffers()) if (matchesCategory(offer, c)) count++;
+        for (ShopOffer offer : bot.getOffers()) {
+            if (matchesCategory(offer, c)) count++;
+        }
         return count;
     }
 
@@ -507,10 +650,12 @@ public final class ShopGui extends GuiScreen {
                 }
                 return;
             }
+
             if (keyCode == Keyboard.KEY_ESCAPE) {
                 mc.displayGuiScreen(null);
                 return;
             }
+
             if (search != null && search.textboxKeyTyped(typedChar, keyCode)) {
                 productScroll = 0;
                 rebuildFilter();
@@ -522,8 +667,10 @@ public final class ShopGui extends GuiScreen {
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         try {
             if (mouseButton != 0) return;
-            if (selected == null && !confirmCheckout && search != null)
+
+            if (selected == null && !confirmCheckout && search != null) {
                 search.mouseClicked(mouseX, mouseY, mouseButton);
+            }
 
             for (int i = hits.size() - 1; i >= 0; i--) {
                 HitBox hit = hits.get(i);
@@ -541,30 +688,53 @@ public final class ShopGui extends GuiScreen {
             super.handleMouseInput();
             int wheel = Mouse.getEventDWheel();
             if (wheel == 0 || selected != null || confirmCheckout) return;
+
             int mouseX = Mouse.getEventX() * width / mc.displayWidth;
             int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
             int direction = wheel > 0 ? -1 : 1;
-            if (mouseX >= guiRight - CART_W && mouseX < guiRight && mouseY >= guiTop && mouseY < guiBottom) cartScroll += direction;
-            else if (mouseX > guiLeft + SIDEBAR_W && mouseX < guiRight - CART_W && mouseY >= guiTop && mouseY < guiBottom) productScroll += direction;
+            int cartLeft = guiRight - cartWidth;
+
+            if (mouseX >= cartLeft && mouseX < guiRight && mouseY >= guiTop && mouseY < guiBottom) {
+                cartScroll += direction;
+            } else if (mouseX > guiLeft && mouseX < cartLeft && mouseY >= guiTop && mouseY < guiBottom) {
+                productScroll += direction;
+            }
         } catch (Exception ignored) {}
     }
 
-    private void button(int x, int y, int w, int h, String label, int mouseX, int mouseY, Runnable action) {
+    private void primaryButton(int x, int y, int w, int h, String label, int mouseX, int mouseY, Runnable action) {
         boolean hover = inside(mouseX, mouseY, x, y, w, h);
-        drawRect(x, y, x + w, y + h, hover ? 0xFFE04458 : 0xFFB72C3F);
-        drawCenteredString(fontRendererObj, "§f" + label, x + w / 2, y + (h - 8) / 2, 0xFFFFFF);
+        int fill = hover ? ACCENT_HOVER : ACCENT;
+        drawRect(x, y, x + w, y + h, fill);
+        drawRect(x, y, x + 3, y + h, hover ? 0xFFFF8795 : 0xFFB92F43);
+        drawCenteredString(fontRendererObj, "§f§l" + label, x + w / 2, y + (h - 8) / 2, TEXT);
+        hits.add(new HitBox(x, y, w, h, action));
+    }
+
+    private void secondaryButton(int x, int y, int w, int h, String label, int mouseX, int mouseY, Runnable action) {
+        boolean hover = inside(mouseX, mouseY, x, y, w, h);
+        panel(x, y, w, h, hover ? SURFACE_3 : SURFACE_2, hover ? 0xFF444C56 : BORDER);
+        drawCenteredString(fontRendererObj, hover ? "§f" + label : "§7" + label, x + w / 2, y + (h - 8) / 2, hover ? TEXT : MUTED);
         hits.add(new HitBox(x, y, w, h, action));
     }
 
     private void smallButton(int x, int y, String label, int mouseX, int mouseY, Runnable action) {
         boolean hover = inside(mouseX, mouseY, x, y, 20, 24);
-        drawRect(x, y, x + 20, y + 24, hover ? 0xFF5A2630 : 0xFF32171D);
-        drawCenteredString(fontRendererObj, "§f" + label, x + 10, y + 8, 0xFFFFFF);
+        panel(x, y, 20, 24, hover ? ACCENT_DARK : SURFACE_3, hover ? ACCENT : BORDER);
+        drawCenteredString(fontRendererObj, "§f" + label, x + 10, y + 8, TEXT);
         hits.add(new HitBox(x, y, 20, 24, action));
+    }
+
+    private void panel(int x, int y, int w, int h, int fill, int border) {
+        drawRect(x, y, x + w, y + h, border);
+        if (w > 2 && h > 2) {
+            drawRect(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        }
     }
 
     private void renderItem(ItemStack stack, int x, int y, float scale) {
         if (stack == null) return;
+
         GlStateManager.pushMatrix();
         try {
             GlStateManager.enableDepth();
@@ -595,7 +765,7 @@ public final class ShopGui extends GuiScreen {
 
     private static String stockText(ShopOffer offer) {
         int max = offer.getMaximumPurchases();
-        if (max == Integer.MAX_VALUE) return "§a∞ verfügbar";
+        if (max == Integer.MAX_VALUE) return "§aUnbegrenzt verfügbar";
         if (max <= 0) return "§cAusverkauft";
         if (max <= 7) return "§eNur " + max + " verfügbar";
         return "§a" + max + " verfügbar";
@@ -617,7 +787,9 @@ public final class ShopGui extends GuiScreen {
     }
 
     private static boolean containsAny(String value, String... needles) {
-        for (String needle : needles) if (value.contains(needle)) return true;
+        for (String needle : needles) {
+            if (value.contains(needle)) return true;
+        }
         return false;
     }
 
@@ -634,20 +806,34 @@ public final class ShopGui extends GuiScreen {
         BLOCKS("Blöcke"),
         DECO("Deko"),
         REDSTONE("Redstone"),
-        TOOLS("Tools & Rüstung"),
+        TOOLS("Tools"),
         FOOD("Essen"),
         OTHER("Sonstiges");
 
         final String label;
-        Category(String label) { this.label = label; }
+
+        Category(String label) {
+            this.label = label;
+        }
     }
 
     private static final class HitBox {
-        final int x, y, w, h;
+        final int x;
+        final int y;
+        final int w;
+        final int h;
         final Runnable action;
+
         HitBox(int x, int y, int w, int h, Runnable action) {
-            this.x = x; this.y = y; this.w = w; this.h = h; this.action = action;
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.action = action;
         }
-        boolean contains(int mx, int my) { return inside(mx, my, x, y, w, h); }
+
+        boolean contains(int mx, int my) {
+            return inside(mx, my, x, y, w, h);
+        }
     }
 }
