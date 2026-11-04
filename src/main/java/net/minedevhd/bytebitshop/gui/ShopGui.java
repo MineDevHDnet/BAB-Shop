@@ -1,5 +1,6 @@
 package net.minedevhd.bytebitshop.gui;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -21,59 +22,43 @@ import net.minedevhd.bytebitshop.util.Chat;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
+/** A small, single-panel shop. All views use the same in-game window; no popup dialogs. */
 public final class ShopGui extends GuiScreen {
     private static final DecimalFormat PRICE = new DecimalFormat("#,##0.00", DecimalFormatSymbols.getInstance(Locale.GERMAN));
-
-    private static final int TOPBAR_H = 62;
-    private static final int CATEGORY_H = 40;
-    private static final int CARD_H = 84;
-    private static final int GUI_MAX_W = 900;
-    private static final int GUI_MAX_H = 500;
-    private static final int GUI_MARGIN = 10;
+    private static final int MAX_WIDTH = 650;
+    private static final int MAX_HEIGHT = 455;
     private static final int PAD = 14;
+    private static final int BACKGROUND = 0xFF0D1118;
+    private static final int SURFACE = 0xFF171E28;
+    private static final int CARD = 0xFF202A36;
+    private static final int HOVER = 0xFF2A3645;
+    private static final int BORDER = 0xFF344151;
+    private static final int WHITE = 0xFFF5F7FA;
+    private static final int MUTED = 0xFFA0ABB9;
+    private static final int ACCENT = 0xFFF05D73;
+    private static final int ACCENT_HOVER = 0xFFFF7488;
+    private static final int GREEN = 0xFF76D7A0;
 
-    private static final int BG_TOP = 0xFF090B0E;
-    private static final int BG_BOTTOM = 0xFF12151A;
-    private static final int SURFACE = 0xFF14171C;
-    private static final int SURFACE_2 = 0xFF1A1E24;
-    private static final int SURFACE_3 = 0xFF20252C;
-    private static final int BORDER = 0xFF2C323A;
-    private static final int BORDER_SOFT = 0xFF23282F;
-    private static final int TEXT = 0xFFF3F5F7;
-    private static final int MUTED = 0xFF8D959F;
-    private static final int ACCENT = 0xFFD9475B;
-    private static final int ACCENT_HOVER = 0xFFE65A6D;
-    private static final int ACCENT_DARK = 0xFF5A202A;
-    private static final int SUCCESS = 0xFF58B67A;
-    private static final int WARNING = 0xFFE7B85C;
-    private static final int DANGER = 0xFFE06666;
+    private enum View { SHOP, CART, DETAIL, CONFIRM }
 
     private final ByteBitShopCore core;
     private final ShopBot bot;
     private final ShoppingCart cart = new ShoppingCart();
     private final List<ShopOffer> filtered = new ArrayList<ShopOffer>();
     private final List<HitBox> hits = new ArrayList<HitBox>();
-
-    private GuiTextField search;
-    private int searchX;
-    private int searchY;
-    private int searchWidth;
-    private int guiLeft;
-    private int guiTop;
-    private int guiRight;
-    private int guiBottom;
-    private int guiWidth;
-    private int guiHeight;
-    private int cartWidth;
-
+    private View view = View.SHOP;
     private Category category = Category.ALL;
-    private int productScroll;
-    private int cartScroll;
+    private GuiTextField search;
     private ShopOffer selected;
-    private int selectedQty = 1;
-    private boolean confirmCheckout;
-    private String toast;
-    private long toastUntil;
+    private int selectedQuantity = 1;
+    private int shopScroll;
+    private int cartScroll;
+    private int componentScroll;
+    private int left, top, right, bottom, panelWidth, panelHeight, headerHeight, footerHeight;
+    private boolean compact;
+    private long lastObservedSync;
+    private String notice;
+    private long noticeUntil;
 
     public ShopGui(ByteBitShopCore core, ShopBot bot) {
         this.core = core;
@@ -83,27 +68,24 @@ public final class ShopGui extends GuiScreen {
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
+        String oldSearch = search == null ? "" : search.getText();
+        panelWidth = Math.max(1, Math.min(MAX_WIDTH, width - 16));
+        panelHeight = Math.max(1, Math.min(MAX_HEIGHT, height - 16));
+        left = (width - panelWidth) / 2;
+        top = (height - panelHeight) / 2;
+        right = left + panelWidth;
+        bottom = top + panelHeight;
+        compact = panelHeight < 310 || panelWidth < 470;
+        headerHeight = compact ? 44 : 58;
+        footerHeight = compact ? 43 : 56;
 
-        guiWidth = Math.max(1, Math.min(GUI_MAX_W, width - GUI_MARGIN * 2));
-        guiHeight = Math.max(1, Math.min(GUI_MAX_H, height - GUI_MARGIN * 2));
-        guiLeft = (width - guiWidth) / 2;
-        guiTop = (height - guiHeight) / 2;
-        guiRight = guiLeft + guiWidth;
-        guiBottom = guiTop + guiHeight;
-        cartWidth = guiWidth < 720 ? 198 : 232;
-
-        int storeRight = guiRight - cartWidth;
-        int brandWidth = Math.max(148, Math.min(210, guiWidth / 4));
-        int refreshWidth = guiWidth < 720 ? 78 : 94;
-
-        searchX = guiLeft + brandWidth;
-        searchY = guiTop + 21;
-        searchWidth = Math.max(108, storeRight - PAD - refreshWidth - 10 - searchX);
-        search = new GuiTextField(1, fontRendererObj, searchX, searchY, searchWidth, 20);
+        search = new GuiTextField(1, fontRendererObj, left + PAD + 5, top + headerHeight + 12,
+                Math.max(1, panelWidth - PAD * 2 - 10), 20);
         search.setMaxStringLength(80);
-        search.setEnableBackgroundDrawing(true);
-        search.setTextColor(0xFFF2F5F7);
-
+        search.setEnableBackgroundDrawing(false);
+        search.setTextColor(WHITE);
+        search.setText(oldSearch);
+        lastObservedSync = bot.getLastSync();
         rebuildFilter();
     }
 
@@ -115,490 +97,358 @@ public final class ShopGui extends GuiScreen {
     @Override
     public void updateScreen() {
         if (search != null) search.updateCursorCounter();
+        if (lastObservedSync != bot.getLastSync()) reconcileLatestOffers();
     }
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         hits.clear();
-
-        drawGradientRect(0, 0, width, height, BG_TOP, BG_BOTTOM);
-        drawRect(guiLeft - 4, guiTop + 3, guiRight + 4, guiBottom + 5, 0x50000000);
-        drawRect(guiLeft - 1, guiTop - 1, guiRight + 1, guiBottom + 1, BORDER);
-        drawRect(guiLeft, guiTop, guiRight, guiBottom, SURFACE);
-
-        int cartLeft = guiRight - cartWidth;
-        drawRect(guiLeft, guiTop, guiRight, guiTop + TOPBAR_H, 0xFF111419);
-        drawRect(guiLeft, guiTop + TOPBAR_H - 1, guiRight, guiTop + TOPBAR_H, BORDER);
-        drawRect(cartLeft, guiTop + TOPBAR_H, guiRight, guiBottom, 0xFF111419);
-        drawRect(cartLeft - 1, guiTop + TOPBAR_H, cartLeft, guiBottom, BORDER);
+        drawGradientRect(0, 0, width, height, 0xFF080B10, 0xFF151D28);
+        drawRect(left - 3, top + 4, right + 3, bottom + 6, 0x67000000);
+        panel(left, top, panelWidth, panelHeight, BACKGROUND, BORDER);
 
         drawHeader(mouseX, mouseY);
-        drawCategoryBar(mouseX, mouseY);
-        drawProducts(mouseX, mouseY);
-        drawCart(mouseX, mouseY);
-
-        if (selected != null) {
-            drawProductModal(mouseX, mouseY);
-        } else if (confirmCheckout) {
-            drawCheckoutModal(mouseX, mouseY);
+        switch (view) {
+            case SHOP: drawShop(mouseX, mouseY); break;
+            case CART: drawCart(mouseX, mouseY); break;
+            case DETAIL: drawDetail(mouseX, mouseY); break;
+            case CONFIRM: drawConfirm(mouseX, mouseY); break;
+            default: break;
         }
-
-        if (toast != null && System.currentTimeMillis() < toastUntil) {
-            int toastW = Math.min(guiWidth - 40, fontRendererObj.getStringWidth(toast) + 34);
-            int toastX = guiLeft + (guiWidth - toastW) / 2;
-            int toastY = guiBottom - 36;
-            panel(toastX, toastY, toastW, 24, 0xF022262C, ACCENT_DARK);
-            drawCenteredString(fontRendererObj, "§f" + trimToWidth(toast, toastW - 18), toastX + toastW / 2, toastY + 8, TEXT);
+        drawFooter(mouseX, mouseY);
+        if (notice != null && System.currentTimeMillis() < noticeUntil) {
+            int w = Math.min(panelWidth - 20, fontRendererObj.getStringWidth(notice) + 26);
+            int x = left + (panelWidth - w) / 2;
+            int y = bottom - footerHeight - 29;
+            panel(x, y, w, 23, 0xFF283443, ACCENT);
+            centered(trim(notice, w - 14), x, y + 8, WHITE, w);
         }
-
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
     private void drawHeader(int mouseX, int mouseY) {
-        int cartLeft = guiRight - cartWidth;
+        drawRect(left + 1, top + 1, right - 1, top + headerHeight, SURFACE);
+        drawRect(left, top + headerHeight - 1, right, top + headerHeight, BORDER);
+        drawRect(left + PAD, top + 10, left + PAD + 3, top + headerHeight - 10, ACCENT);
+        fontRendererObj.drawString("§f§lBAB SHOP", left + PAD + 12, top + 11, WHITE);
+        fontRendererObj.drawString("§7" + trim(bot.getName(), Math.max(50, panelWidth - 235)), left + PAD + 12, top + 26, MUTED);
 
-        drawRect(guiLeft + 14, guiTop + 13, guiLeft + 18, guiTop + 47, ACCENT);
-        fontRendererObj.drawString("§f§lBYTE & BIT", guiLeft + 27, guiTop + 15, TEXT);
-        fontRendererObj.drawString("§7MARKETPLACE", guiLeft + 27, guiTop + 29, MUTED);
-        fontRendererObj.drawString("§8" + trim(bot.getName(), Math.max(70, searchX - guiLeft - 42)), guiLeft + 27, guiTop + 42, MUTED);
-
-        drawRect(searchX - 2, searchY - 2, searchX + searchWidth + 2, searchY + 22, BORDER_SOFT);
-        search.drawTextBox();
-        if (search.getText().isEmpty() && !search.isFocused()) {
-            fontRendererObj.drawString("§8Suche nach Item, Preis oder Inhalt ...", searchX + 5, searchY + 6, MUTED);
+        if (view == View.SHOP) {
+            button(right - PAD - 99, top + (headerHeight - 27) / 2, 99, 27,
+                    "Korb (" + cart.transactionCount() + ")", mouseX, mouseY, true, new Runnable() {
+                        @Override public void run() { view = View.CART; cartScroll = 0; }
+                    });
+        } else {
+            button(right - PAD - 80, top + (headerHeight - 27) / 2, 80, 27,
+                    "Angebote", mouseX, mouseY, false, new Runnable() {
+                        @Override public void run() { view = View.SHOP; }
+                    });
         }
+    }
 
-        final int refreshW = guiWidth < 720 ? 78 : 94;
-        int refreshX = cartLeft - PAD - refreshW;
-        secondaryButton(refreshX, guiTop + 19, refreshW, 26, guiWidth < 720 ? "Refresh" : "Aktualisieren", mouseX, mouseY, new Runnable() {
-            @Override public void run() {
-                toast("Shop wird aktualisiert ...");
-                core.getRegistry().ensureSynced(bot, true, new Runnable() {
-                    @Override public void run() {
-                        rebuildFilter();
-                        toast(bot.getLastError() == null ? "Shop aktualisiert" : "Fehler: " + bot.getLastError());
-                    }
+    private void drawShop(int mouseX, int mouseY) {
+        int filterTop = top + headerHeight;
+        int searchTop = filterTop + 7;
+        panel(left + PAD, searchTop, panelWidth - PAD * 2, 29, SURFACE, BORDER);
+        search.drawTextBox();
+        if (search.getText().isEmpty() && !search.isFocused())
+            fontRendererObj.drawString("§8Item suchen ...", left + PAD + 5, searchTop + 10, MUTED);
+
+        int categoryY = filterTop + (compact ? 41 : 45);
+        button(left + PAD, categoryY, 23, 25, "<", mouseX, mouseY, false, new Runnable() {
+            @Override public void run() { switchCategory(-1); }
+        });
+        button(left + PAD + 25, categoryY, compact ? 103 : 142, 25,
+                category.label + " (" + countFor(category) + ")", mouseX, mouseY, false, new Runnable() {
+                    @Override public void run() { switchCategory(1); }
                 });
-            }
+        button(left + PAD + (compact ? 130 : 169), categoryY, 23, 25, ">", mouseX, mouseY, false, new Runnable() {
+            @Override public void run() { switchCategory(1); }
         });
 
-        int cartBadgeX = cartLeft + PAD;
-        int badgeY = guiTop + 16;
-        int badgeW = cartWidth - PAD * 2;
-        drawRect(cartBadgeX, badgeY, cartBadgeX + badgeW, badgeY + 30, SURFACE_2);
-        drawRect(cartBadgeX, badgeY, cartBadgeX + 3, badgeY + 30, ACCENT);
-        fontRendererObj.drawString("§f§lWARENKORB", cartBadgeX + 11, badgeY + 6, TEXT);
-        String itemText = cart.transactionCount() + " Pos.";
-        fontRendererObj.drawString("§8" + itemText, cartBadgeX + badgeW - 8 - fontRendererObj.getStringWidth(itemText), badgeY + 7, MUTED);
-        fontRendererObj.drawString("§7" + trimToWidth(formatPrice(cart.total()), badgeW - 20), cartBadgeX + 11, badgeY + 18, MUTED);
-    }
+        int refreshW = compact ? 42 : 85;
+        button(right - PAD - refreshW, categoryY, refreshW, 25,
+                compact ? "Neu" : "Aktualisieren", mouseX, mouseY, false, new Runnable() {
+                    @Override public void run() { refresh(); }
+                });
 
-    private void drawCategoryBar(int mouseX, int mouseY) {
-        int left = guiLeft + PAD;
-        int right = guiRight - cartWidth - PAD;
-        int top = guiTop + TOPBAR_H + 10;
-        int available = Math.max(1, right - left);
-        int gap = 5;
-        int count = Category.values().length;
-        int tabW = Math.max(42, (available - gap * (count - 1)) / count);
+        int listTop = categoryY + 34;
+        int listBottom = bottom - footerHeight - 8;
+        int rowH = compact ? 55 : 65;
+        int step = rowH + 7;
+        int visible = Math.max(0, (listBottom - listTop + 7) / step);
+        int maxScroll = Math.max(0, filtered.size() - visible);
+        shopScroll = clamp(shopScroll, 0, maxScroll);
 
-        for (int i = 0; i < count; i++) {
-            final Category c = Category.values()[i];
-            int x = left + i * (tabW + gap);
-            int w = i == count - 1 ? Math.max(42, right - x) : tabW;
-            boolean active = category == c;
-            boolean hover = inside(mouseX, mouseY, x, top, w, 28);
-
-            int fill = active ? ACCENT_DARK : (hover ? SURFACE_3 : SURFACE_2);
-            int border = active ? ACCENT : BORDER_SOFT;
-            panel(x, top, w, 28, fill, border);
-
-            String label = c.label;
-            int categoryCount = countFor(c);
-            String countText = Integer.toString(categoryCount);
-            int countW = fontRendererObj.getStringWidth(countText);
-            int labelSpace = w - 18 - countW;
-            String shown = trimToWidth(label, Math.max(18, labelSpace));
-            fontRendererObj.drawString(active ? "§f" + shown : "§7" + shown, x + 8, top + 10, active ? TEXT : MUTED);
-            fontRendererObj.drawString(active ? "§f" + countText : "§8" + countText, x + w - 8 - countW, top + 10, active ? TEXT : MUTED);
-
-            final int fx = x;
-            final int fw = w;
-            hits.add(new HitBox(fx, top, fw, 28, new Runnable() {
-                @Override public void run() {
-                    category = c;
-                    productScroll = 0;
-                    rebuildFilter();
-                }
-            }));
+        if (filtered.isEmpty()) {
+            centered("§7Keine passenden Angebote", left, listTop + 24, MUTED, panelWidth);
+            centered("§8Suche oder Kategorie ändern", left, listTop + 39, MUTED, panelWidth);
+            return;
         }
-    }
 
-    private void drawProducts(int mouseX, int mouseY) {
-        int left = guiLeft + PAD;
-        int right = guiRight - cartWidth - PAD;
-        int top = guiTop + TOPBAR_H + CATEGORY_H + 8;
-        int bottom = guiBottom - PAD;
-
-        fontRendererObj.drawString("§f§lAngebote", left, top, TEXT);
-        String meta = filtered.size() + " von " + bot.getOffers().size();
-        fontRendererObj.drawString("§8" + meta, right - fontRendererObj.getStringWidth(meta), top, MUTED);
-        top += 19;
-
-        int availableWidth = Math.max(120, right - left);
-        int columns = availableWidth >= 430 ? 2 : 1;
-        int gap = 8;
-        int cardW = (availableWidth - gap * (columns - 1)) / columns;
-        int rowsVisible = Math.max(1, (bottom - top) / (CARD_H + gap));
-        int totalRows = (filtered.size() + columns - 1) / columns;
-        int maxScroll = Math.max(0, totalRows - rowsVisible);
-        productScroll = clamp(productScroll, 0, maxScroll);
-
-        int first = productScroll * columns;
-        int capacity = (rowsVisible + 1) * columns;
-        int end = Math.min(filtered.size(), first + capacity);
-        ItemStack hoverStack = null;
-
-        for (int index = first; index < end; index++) {
-            final ShopOffer offer = filtered.get(index);
-            int relative = index - first;
-            int row = relative / columns;
-            int col = relative % columns;
-            int x = left + col * (cardW + gap);
-            int y = top + row * (CARD_H + gap);
-
-            if (y + CARD_H > bottom) continue;
-
-            boolean hover = inside(mouseX, mouseY, x, y, cardW, CARD_H);
-            boolean available = offer.isAvailable();
-            int fill = hover ? 0xFF22272E : SURFACE_2;
-            int border = hover ? 0xFF3C444E : BORDER_SOFT;
-
-            panel(x, y, cardW, CARD_H, fill, border);
-            drawRect(x, y, x + 4, y + CARD_H, available ? ACCENT : 0xFF555B63);
+        ItemStack hoveredItem = null;
+        for (int i = shopScroll; i < filtered.size() && i < shopScroll + visible; i++) {
+            final ShopOffer offer = filtered.get(i);
+            int x = left + PAD;
+            int y = listTop + (i - shopScroll) * step;
+            int w = panelWidth - PAD * 2;
+            boolean hovered = inside(mouseX, mouseY, x, y, w, rowH);
+            panel(x, y, w, rowH, hovered ? HOVER : SURFACE, hovered ? ACCENT : BORDER);
 
             ItemStack stack = offer.getDisplayStack();
             if (stack != null) {
-                drawRect(x + 13, y + 15, x + 49, y + 51, 0xFF111419);
-                renderItem(stack, x + 15, y + 17, 1.95F);
-                if (hover) hoverStack = stack;
+                panel(x + 8, y + (rowH - 40) / 2, 40, 40, CARD, BORDER);
+                renderItem(stack, x + 14, y + (rowH - 25) / 2, 1.65F);
+                if (inside(mouseX, mouseY, x + 8, y, 44, rowH)) hoveredItem = stack;
             }
 
-            int textX = x + 61;
-            int contentRight = x + cardW - 10;
-            String name = clean(offer.getDisplayName());
-            fontRendererObj.drawString("§f§l" + trimToWidth(name, Math.max(40, contentRight - textX)), textX, y + 13, TEXT);
-
-            String stock = stockText(offer);
-            fontRendererObj.drawString(stock, textX, y + 31, TEXT);
-
+            int infoX = x + 57;
+            int labelWidth = Math.max(30, w - 177);
+            fontRendererObj.drawString("§f" + trim(clean(offer.getDisplayName()), labelWidth), infoX, y + 11, WHITE);
+            fontRendererObj.drawString(stockText(offer), infoX, y + (compact ? 28 : 35), MUTED);
             String price = formatPrice(offer.getPrice());
-            fontRendererObj.drawString("§f§l" + price, textX, y + 54, TEXT);
+            fontRendererObj.drawString("§f§l" + trim(price, 98), x + w - 106, y + 11, WHITE);
 
-            String details = "Details >";
-            fontRendererObj.drawString(hover ? "§f" + details : "§8" + details,
-                    contentRight - fontRendererObj.getStringWidth(details), y + 55, hover ? TEXT : MUTED);
-
-            final int fx = x;
-            final int fy = y;
-            hits.add(new HitBox(fx, fy, cardW, CARD_H, new Runnable() {
+            hits.add(new HitBox(x, y, w, rowH, new Runnable() {
                 @Override public void run() {
                     selected = offer;
-                    selectedQty = Math.max(1, cart.getQuantity(offer));
+                    selectedQuantity = Math.max(1, cart.getQuantity(offer));
+                    componentScroll = 0;
+                    view = View.DETAIL;
                 }
             }));
+            button(x + w - 79, y + rowH - 30, 71, 23,
+                    offer.isAvailable() ? "+ 1" : "Leer", mouseX, mouseY, offer.isAvailable(), new Runnable() {
+                        @Override public void run() {
+                            if (!offer.isAvailable() || !cart.add(offer, 1)) toast("Nicht genug Lagerbestand");
+                            else toast("Zum Warenkorb hinzugefügt");
+                        }
+                    });
         }
-
-        if (filtered.isEmpty()) {
-            int emptyY = top + 38;
-            drawRect(left, emptyY, right, emptyY + 72, SURFACE_2);
-            drawCenteredString(fontRendererObj, "§fKeine passenden Angebote", (left + right) / 2, emptyY + 22, TEXT);
-            drawCenteredString(fontRendererObj, "§8Versuche eine andere Suche oder Kategorie.", (left + right) / 2, emptyY + 40, MUTED);
-        }
-
-        if (maxScroll > 0) {
-            int barX = right - 3;
-            int barTop = top;
-            int barH = Math.max(44, bottom - top);
-            drawRect(barX, barTop, barX + 2, barTop + barH, BORDER_SOFT);
-            int thumbH = Math.max(22, barH * rowsVisible / Math.max(rowsVisible, totalRows));
-            int thumbY = barTop + (barH - thumbH) * productScroll / maxScroll;
-            drawRect(barX, thumbY, barX + 2, thumbY + thumbH, ACCENT);
-        }
-
-        if (hoverStack != null && selected == null && !confirmCheckout && !Mouse.isButtonDown(0)) {
-            renderToolTip(hoverStack, mouseX, mouseY);
-        }
+        if (hoveredItem != null && !Mouse.isButtonDown(0)) renderToolTip(hoveredItem, mouseX, mouseY);
+        if (maxScroll > 0) scrollBar(right - 7, listTop, listBottom - listTop, visible, filtered.size(), shopScroll);
     }
 
     private void drawCart(int mouseX, int mouseY) {
-        int x = guiRight - cartWidth;
-        int innerX = x + PAD;
-        int innerRight = guiRight - PAD;
-        int y = guiTop + TOPBAR_H + 13;
-
-        fontRendererObj.drawString("§f§lDeine Auswahl", innerX, y, TEXT);
-        String purchases = cart.transactionCount() + " Kauf" + (cart.transactionCount() == 1 ? "" : "vorgänge");
-        fontRendererObj.drawString("§8" + purchases, innerRight - fontRendererObj.getStringWidth(purchases), y, MUTED);
-        y += 20;
+        int titleY = top + headerHeight + 17;
+        fontRendererObj.drawString("§f§lWarenkorb", left + PAD, titleY, WHITE);
+        String count = cart.transactionCount() + " Zahlungen";
+        fontRendererObj.drawString("§7" + count, right - PAD - fontRendererObj.getStringWidth(count), titleY, MUTED);
 
         List<ShoppingCart.Line> lines = cart.lines();
-        int footerH = 112;
-        int listBottom = guiBottom - footerH - 6;
-        int rowH = 54;
-        int visibleRows = Math.max(1, (listBottom - y) / rowH);
-        int maxCartScroll = Math.max(0, lines.size() - visibleRows);
-        cartScroll = clamp(cartScroll, 0, maxCartScroll);
-
+        int listTop = titleY + 22;
+        int listBottom = bottom - footerHeight - 10;
+        int step = compact ? 54 : 61;
+        int rowH = step - 7;
+        int visible = Math.max(0, (listBottom - listTop + 7) / step);
+        cartScroll = clamp(cartScroll, 0, Math.max(0, lines.size() - visible));
         if (lines.isEmpty()) {
-            int emptyH = 76;
-            panel(innerX, y, innerRight - innerX, emptyH, SURFACE_2, BORDER_SOFT);
-            drawCenteredString(fontRendererObj, "§7Warenkorb ist leer", x + cartWidth / 2, y + 22, MUTED);
-            drawCenteredString(fontRendererObj, "§8Wähle links ein Angebot aus.", x + cartWidth / 2, y + 41, MUTED);
+            centered("§7Dein Warenkorb ist leer", left, listTop + 24, MUTED, panelWidth);
+            centered("§8Wähle unter Angebote ein Item aus.", left, listTop + 42, MUTED, panelWidth);
         }
 
-        for (int i = cartScroll; i < lines.size() && i < cartScroll + visibleRows; i++) {
+        for (int i = cartScroll; i < lines.size() && i < cartScroll + visible; i++) {
             final ShoppingCart.Line line = lines.get(i);
-            int rowY = y + (i - cartScroll) * rowH;
-
-            panel(innerX, rowY, innerRight - innerX, 47, SURFACE_2, BORDER_SOFT);
+            int x = left + PAD;
+            int y = listTop + (i - cartScroll) * step;
+            int w = panelWidth - PAD * 2;
+            panel(x, y, w, rowH, SURFACE, BORDER);
             ItemStack stack = line.offer.getDisplayStack();
-            if (stack != null) renderItem(stack, innerX + 7, rowY + 15, 1.0F);
-
-            final int minusX = innerRight - 47;
-            final int plusX = innerRight - 23;
-            int textX = innerX + 29;
-            int textWidth = Math.max(34, minusX - textX - 6);
-
-            String name = clean(line.offer.getDisplayName());
-            fontRendererObj.drawString("§f" + trimToWidth(name, textWidth), textX, rowY + 8, TEXT);
-            String linePrice = line.quantity + " x " + formatPrice(line.offer.getPrice());
-            fontRendererObj.drawString("§8" + trimToWidth(linePrice, textWidth), textX, rowY + 25, MUTED);
-
-            smallButton(minusX, rowY + 12, "-", mouseX, mouseY, new Runnable() {
+            if (stack != null) renderItem(stack, x + 9, y + 15, 1.0F);
+            int labelWidth = Math.max(30, w - 178);
+            fontRendererObj.drawString("§f" + trim(clean(line.offer.getDisplayName()), labelWidth), x + 34, y + 9, WHITE);
+            fontRendererObj.drawString("§7" + trim(formatPrice(line.offer.getPrice()) + " / Stück", labelWidth), x + 34, y + 26, MUTED);
+            int minusX = x + w - 110;
+            button(minusX, y + 10, 28, 27, "-", mouseX, mouseY, false, new Runnable() {
                 @Override public void run() { cart.add(line.offer, -1); }
             });
-            smallButton(plusX, rowY + 12, "+", mouseX, mouseY, new Runnable() {
-                @Override public void run() {
-                    if (!cart.add(line.offer, 1)) toast("Nicht genug Lagerbestand");
-                }
+            panel(minusX + 30, y + 10, 48, 27, CARD, BORDER);
+            centered("§f" + line.quantity, minusX + 30, y + 19, WHITE, 48);
+            button(minusX + 80, y + 10, 28, 27, "+", mouseX, mouseY, false, new Runnable() {
+                @Override public void run() { if (!cart.add(line.offer, 1)) toast("Nicht genug Lagerbestand"); }
             });
         }
-
-        int footerY = guiBottom - footerH;
-        drawRect(x, footerY, guiRight, footerY + 1, BORDER);
-        fontRendererObj.drawString("§8GESAMT", innerX, footerY + 14, MUTED);
-
-        String total = formatPrice(cart.total());
-        fontRendererObj.drawString("§f§l" + total, innerRight - fontRendererObj.getStringWidth(total), footerY + 13, TEXT);
-        fontRendererObj.drawString("§8" + cart.transactionCount() + " Zahlung(en) · 2,5 s Abstand", innerX, footerY + 32, MUTED);
-
-        boolean canCheckout = !cart.isEmpty() && cart.transactionCount() <= 128 && !core.getPaymentQueue().isBusy();
-        final int buttonY = footerY + 54;
-
-        if (canCheckout) {
-            primaryButton(innerX, buttonY, innerRight - innerX, 32, "Zur Kasse", mouseX, mouseY, new Runnable() {
-                @Override public void run() { confirmCheckout = true; }
-            });
-        } else {
-            drawRect(innerX, buttonY, innerRight, buttonY + 32, 0xFF1C2026);
-            drawRect(innerX, buttonY, innerX + 3, buttonY + 32, 0xFF4A5058);
-            String text = core.getPaymentQueue().isBusy()
-                    ? "Checkout läuft ..."
-                    : (cart.transactionCount() > 128 ? "Max. 128 Zahlungen" : "Noch nichts ausgewählt");
-            drawCenteredString(fontRendererObj, "§8" + text, x + cartWidth / 2, buttonY + 12, MUTED);
-        }
-
-        String hint = "ESC schließen · /babshop cancel";
-        drawCenteredString(fontRendererObj, "§8" + trimToWidth(hint, cartWidth - PAD * 2), x + cartWidth / 2, guiBottom - 17, MUTED);
+        if (visible < lines.size()) scrollBar(right - 7, listTop, listBottom - listTop, visible, lines.size(), cartScroll);
     }
 
-    private void drawProductModal(int mouseX, int mouseY) {
-        hits.add(new HitBox(0, 0, width, height, new Runnable() { @Override public void run() {} }));
-        drawRect(0, 0, width, height, 0xB5000000);
-
-        int w = Math.min(430, guiWidth - 34);
-        int h = Math.min(270, guiHeight - 34);
-        int x = guiLeft + (guiWidth - w) / 2;
-        int y = guiTop + (guiHeight - h) / 2;
-
-        panel(x, y, w, h, SURFACE, BORDER);
-        drawRect(x, y, x + w, y + 4, ACCENT);
-
+    private void drawDetail(int mouseX, int mouseY) {
+        if (selected == null) { view = View.SHOP; return; }
+        int x = left + PAD;
+        int y = top + headerHeight + 12;
+        int w = panelWidth - PAD * 2;
+        panel(x, y, w, compact ? 64 : 79, SURFACE, BORDER);
         ItemStack stack = selected.getDisplayStack();
-        int previewX = x + 22;
-        int previewY = y + 24;
-        panel(previewX, previewY, 74, 74, 0xFF101318, BORDER_SOFT);
-        if (stack != null) renderItem(stack, previewX + 20, previewY + 20, 2.15F);
+        if (stack != null) renderItem(stack, x + 13, y + (compact ? 14 : 18), compact ? 2.0F : 2.5F);
+        int infoX = x + 65;
+        fontRendererObj.drawString("§f§l" + trim(clean(selected.getDisplayName()), w - 78), infoX, y + (compact ? 8 : 13), WHITE);
+        fontRendererObj.drawString("§f" + formatPrice(selected.getPrice()) + " §7pro Zahlung", infoX, y + (compact ? 25 : 33), WHITE);
+        fontRendererObj.drawString(stockText(selected), infoX, y + (compact ? 43 : 52), MUTED);
 
-        int infoX = x + 114;
-        int infoRight = x + w - 22;
-        fontRendererObj.drawString("§f§l" + trimToWidth(clean(selected.getDisplayName()), infoRight - infoX), infoX, y + 27, TEXT);
-        fontRendererObj.drawString("§8Angebot von §f" + trimToWidth(bot.getName(), infoRight - infoX - 68), infoX, y + 45, MUTED);
-
-        String price = formatPrice(selected.getPrice());
-        fontRendererObj.drawString("§f§l" + price, infoX, y + 68, TEXT);
-        fontRendererObj.drawString("§8pro Zahlung", infoX + fontRendererObj.getStringWidth(price) + 7, y + 69, MUTED);
-        fontRendererObj.drawString(stockText(selected), infoX, y + 86, TEXT);
-
-        int componentTop = y + 115;
-        int componentH = Math.max(58, h - 190);
-        panel(x + 22, componentTop, w - 44, componentH, SURFACE_2, BORDER_SOFT);
-        fontRendererObj.drawString("§8DU ERHÄLTST PRO ZAHLUNG", x + 34, componentTop + 11, MUTED);
-
-        int componentY = componentTop + 29;
-        int shown = 0;
-        for (ShopComponent component : selected.getComponents()) {
-            if (shown >= 4) break;
-            ItemStack componentStack = component.getStack();
-            String line = "§f" + componentStack.stackSize + "x §7" + clean(componentStack.getDisplayName());
-            fontRendererObj.drawString(trimToWidth(line, w - 70), x + 34, componentY, TEXT);
-            componentY += 13;
-            shown++;
+        int contentTop = y + (compact ? 72 : 90);
+        fontRendererObj.drawString("§7DU ERHÄLTST PRO ZAHLUNG", x + 4, contentTop, MUTED);
+        contentTop += 17;
+        int contentBottom = bottom - footerHeight - 8;
+        int visible = Math.max(0, (contentBottom - contentTop) / 23);
+        List<ShopComponent> components = selected.getComponents();
+        componentScroll = clamp(componentScroll, 0, Math.max(0, components.size() - visible));
+        for (int i = componentScroll; i < components.size() && i < componentScroll + visible; i++) {
+            ShopComponent component = components.get(i);
+            int rowY = contentTop + (i - componentScroll) * 23;
+            panel(x, rowY, w, 21, SURFACE, BORDER);
+            ItemStack item = component.getStack();
+            if (item != null) {
+                renderItem(item, x + 3, rowY + 2, 1.0F);
+                fontRendererObj.drawString("§f" + item.stackSize + "x §7" + trim(clean(item.getDisplayName()), w - 43),
+                        x + 25, rowY + 7, WHITE);
+            }
         }
+        if (visible < components.size()) scrollBar(right - 7, contentTop, contentBottom - contentTop,
+                visible, components.size(), componentScroll);
+    }
 
-        if (selected.getComponents().size() > shown) {
-            fontRendererObj.drawString("§8+ " + (selected.getComponents().size() - shown) + " weitere Komponente(n)", x + 34, componentY, MUTED);
+    private void drawConfirm(int mouseX, int mouseY) {
+        int x = left + PAD;
+        int y = top + headerHeight + (compact ? 8 : 20);
+        int w = panelWidth - PAD * 2;
+        fontRendererObj.drawString("§f§lEinkauf bestätigen", x, y, WHITE);
+        fontRendererObj.drawString("§7Prüfe die Zahlung, bevor sie ausgeführt wird.", x, y + 19, MUTED);
+        int infoY = y + (compact ? 35 : 50);
+        panel(x, infoY, w, compact ? 79 : 110, SURFACE, BORDER);
+        summaryLine("Shop", bot.getName(), x + 12, infoY + 14, w - 24);
+        summaryLine("Zahlungen", String.valueOf(cart.transactionCount()), x + 12, infoY + 37, w - 24);
+        summaryLine("Gesamt", formatPrice(cart.total()), x + 12, infoY + 60, w - 24);
+        if (!compact) fontRendererObj.drawString("§7Jede Zahlung wird mit 2,5 s Abstand gesendet.", x + 12, infoY + 87, MUTED);
+    }
+
+    private void drawFooter(int mouseX, int mouseY) {
+        int y = bottom - footerHeight;
+        drawRect(left, y, right, y + 1, BORDER);
+        drawRect(left + 1, y + 1, right - 1, bottom - 1, SURFACE);
+        int buttonY = y + (footerHeight - 30) / 2;
+        int actionW = compact ? 112 : 146;
+        int actionX = right - PAD - actionW;
+
+        if (view == View.SHOP) {
+            String label = filtered.size() + " Angebote";
+            fontRendererObj.drawString("§7" + label, left + PAD, y + (footerHeight - 8) / 2, MUTED);
+            button(actionX, buttonY, actionW, 30, compact ? "Warenkorb" : "Warenkorb öffnen", mouseX, mouseY, true, new Runnable() {
+                @Override public void run() { view = View.CART; cartScroll = 0; }
+            });
+        } else if (view == View.CART) {
+            fontRendererObj.drawString("§7Gesamtpreis", left + PAD, y + 8, MUTED);
+            fontRendererObj.drawString("§f§l" + trim(formatPrice(cart.total()), Math.max(30, actionX - left - PAD - 5)),
+                    left + PAD, y + (compact ? 23 : 30), WHITE);
+            boolean enabled = !cart.isEmpty() && cart.transactionCount() <= 128 && !core.getPaymentQueue().isBusy();
+            button(actionX, buttonY, actionW, 30, enabled ? "Zur Kasse" : "Nicht verfügbar", mouseX, mouseY, enabled,
+                    new Runnable() { @Override public void run() { view = View.CONFIRM; } });
+        } else if (view == View.DETAIL) {
+            button(left + PAD, buttonY, compact ? 49 : 78, 30, "Zurück", mouseX, mouseY, false,
+                    new Runnable() { @Override public void run() { view = View.SHOP; selected = null; } });
+            int qtyX = left + PAD + (compact ? 55 : 89);
+            button(qtyX, buttonY + 2, 24, 26, "-", mouseX, mouseY, false,
+                    new Runnable() { @Override public void run() { selectedQuantity = Math.max(1, selectedQuantity - 1); } });
+            panel(qtyX + 26, buttonY + 2, 34, 26, CARD, BORDER);
+            centered("§f" + selectedQuantity, qtyX + 26, buttonY + 11, WHITE, 34);
+            button(qtyX + 62, buttonY + 2, 24, 26, "+", mouseX, mouseY, false,
+                    new Runnable() { @Override public void run() { selectedQuantity = Math.min(64, selectedQuantity + 1); } });
+            button(actionX, buttonY, actionW, 30, "Zum Warenkorb", mouseX, mouseY, true, new Runnable() {
+                @Override public void run() {
+                    if (!cart.setQuantity(selected, selectedQuantity)) {
+                        toast("Nicht genug Lagerbestand");
+                        return;
+                    }
+                    selected = null;
+                    view = View.SHOP;
+                    toast("Menge übernommen");
+                }
+            });
+        } else {
+            button(left + PAD, buttonY, compact ? 95 : 120, 30, "Zurück", mouseX, mouseY, false,
+                    new Runnable() { @Override public void run() { view = View.CART; } });
+            button(actionX, buttonY, actionW, 30, "Jetzt kaufen", mouseX, mouseY, true,
+                    new Runnable() { @Override public void run() { checkout(); } });
         }
+    }
 
-        int controlsY = y + h - 51;
-        fontRendererObj.drawString("§8MENGE", x + 22, controlsY + 10, MUTED);
-
-        smallButton(x + 74, controlsY + 1, "-", mouseX, mouseY, new Runnable() {
-            @Override public void run() { selectedQty = Math.max(1, selectedQty - 1); }
-        });
-
-        panel(x + 99, controlsY + 1, 44, 24, 0xFF101318, BORDER_SOFT);
-        drawCenteredString(fontRendererObj, "§f" + selectedQty, x + 121, controlsY + 9, TEXT);
-
-        smallButton(x + 148, controlsY + 1, "+", mouseX, mouseY, new Runnable() {
-            @Override public void run() { selectedQty = Math.min(64, selectedQty + 1); }
-        });
-
-        int cancelW = 78;
-        int addW = 108;
-        secondaryButton(x + w - 22 - addW - 8 - cancelW, controlsY - 1, cancelW, 28, "Zurück", mouseX, mouseY, new Runnable() {
-            @Override public void run() { selected = null; }
-        });
-
-        primaryButton(x + w - 22 - addW, controlsY - 1, addW, 28, "Hinzufügen", mouseX, mouseY, new Runnable() {
+    private void refresh() {
+        toast("Shop wird aktualisiert ...");
+        core.getRegistry().ensureSynced(bot, true, new Runnable() {
             @Override public void run() {
-                if (!selected.isAvailable()) {
-                    toast("Dieses Angebot ist ausverkauft");
+                if (bot.getLastError() != null) {
+                    toast("Fehler: " + bot.getLastError());
                     return;
                 }
-                if (!cart.setQuantity(selected, selectedQty)) {
-                    toast("Nicht genug Lagerbestand für diese Menge");
-                    return;
-                }
-                selected = null;
-                toast("Zum Warenkorb hinzugefügt");
+                reconcileLatestOffers();
+                shopScroll = cartScroll = 0;
+                toast("Shop aktualisiert");
             }
         });
     }
 
-    private void drawCheckoutModal(int mouseX, int mouseY) {
-        hits.add(new HitBox(0, 0, width, height, new Runnable() { @Override public void run() {} }));
-        drawRect(0, 0, width, height, 0xB5000000);
-
-        int w = Math.min(390, guiWidth - 34);
-        int h = Math.min(218, guiHeight - 30);
-        int x = guiLeft + (guiWidth - w) / 2;
-        int y = guiTop + (guiHeight - h) / 2;
-
-        panel(x, y, w, h, SURFACE, BORDER);
-        drawRect(x, y, x + w, y + 4, ACCENT);
-
-        drawCenteredString(fontRendererObj, "§f§lCheckout bestätigen", width / 2, y + 24, TEXT);
-        drawCenteredString(fontRendererObj, "§8Prüfe deinen Einkauf vor dem Start.", width / 2, y + 42, MUTED);
-
-        int summaryX = x + 28;
-        int summaryY = y + 67;
-        int summaryW = w - 56;
-        panel(summaryX, summaryY, summaryW, 72, SURFACE_2, BORDER_SOFT);
-
-        fontRendererObj.drawString("§8SHOP", summaryX + 12, summaryY + 11, MUTED);
-        String botName = trimToWidth(bot.getName(), summaryW - 96);
-        fontRendererObj.drawString("§f" + botName, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(botName), summaryY + 11, TEXT);
-
-        fontRendererObj.drawString("§8ZAHLUNGEN", summaryX + 12, summaryY + 29, MUTED);
-        String transactions = Integer.toString(cart.transactionCount());
-        fontRendererObj.drawString("§f" + transactions, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(transactions), summaryY + 29, TEXT);
-
-        fontRendererObj.drawString("§8SUMME", summaryX + 12, summaryY + 47, MUTED);
-        String total = formatPrice(cart.total());
-        fontRendererObj.drawString("§f§l" + total, summaryX + summaryW - 12 - fontRendererObj.getStringWidth(total), summaryY + 47, TEXT);
-
-        drawCenteredString(fontRendererObj, "§8Jede /pay-Zahlung wird mit 2,5 Sekunden Abstand gesendet.", width / 2, y + 151, MUTED);
-
-        int modalButtonY = y + h - 40;
-        secondaryButton(x + 28, modalButtonY, 112, 28, "Abbrechen", mouseX, mouseY, new Runnable() {
-            @Override public void run() { confirmCheckout = false; }
-        });
-
-        primaryButton(x + w - 140, modalButtonY, 112, 28, "Jetzt kaufen", mouseX, mouseY, new Runnable() {
-            @Override public void run() { doCheckout(); }
-        });
+    private void reconcileLatestOffers() {
+        lastObservedSync = bot.getLastSync();
+        List<ShopOffer> fresh = bot.getOffers();
+        boolean reduced = cart.reconcileOffers(fresh);
+        if (selected != null) {
+            ShopOffer replacement = null;
+            for (ShopOffer offer : fresh) {
+                if (offer.getPriceCents() == selected.getPriceCents()) {
+                    replacement = offer;
+                    break;
+                }
+            }
+            selected = replacement;
+            if (selected == null && view == View.DETAIL) view = View.SHOP;
+            selectedQuantity = selected == null ? 1 : Math.max(1, Math.min(selectedQuantity, 64));
+        }
+        rebuildFilter();
+        if (reduced) toast("Bestand geändert: Warenkorb angepasst");
     }
 
-    private void doCheckout() {
-        if (mc.thePlayer == null || mc.theWorld == null) {
-            toast("Keine Serververbindung");
-            return;
-        }
+    private void checkout() {
+        if (mc.thePlayer == null || mc.theWorld == null) { toast("Keine Serververbindung"); return; }
         if (core.getConfig().requireBotZone && !bot.contains(mc.thePlayer.getPositionVector())) {
-            toast("Du bist nicht mehr in der Bot-Zone");
-            return;
+            toast("Du bist nicht mehr in der Bot-Zone"); return;
         }
-        if (cart.transactionCount() > 128) {
-            toast("Maximal 128 Zahlungen pro Checkout");
-            return;
+        if (cart.isEmpty() || cart.transactionCount() > 128) { toast("Ungültige Anzahl an Zahlungen"); return; }
+        if (core.getPaymentQueue().isBusy() || !core.getPaymentQueue().start(bot.getName(), cart)) {
+            toast("Checkout konnte nicht gestartet werden"); return;
         }
-        if (core.getPaymentQueue().isBusy()) {
-            toast("Es läuft bereits ein Checkout");
-            return;
-        }
-        if (!core.getPaymentQueue().start(bot.getName(), cart)) {
-            toast("Checkout konnte nicht gestartet werden");
-            return;
-        }
-
-        cart.consumeLocally();
         int transactions = cart.transactionCount();
         String total = formatPrice(cart.total());
+        cart.consumeLocally();
         cart.clear();
-        confirmCheckout = false;
-        Chat.info("Checkout gestartet: §f" + transactions + " §7Zahlung(en), Summe §c" + total + "§7, Delay §f2,5 s§7. Abbruch: §f/babshop cancel");
+        Chat.info("Checkout gestartet: §f" + transactions + " §7Zahlung(en), Summe §c" + total
+                + "§7. Abbruch mit §f/babshop cancel");
         mc.displayGuiScreen(null);
+    }
+
+    private void switchCategory(int direction) {
+        Category[] values = Category.values();
+        category = values[(category.ordinal() + direction + values.length) % values.length];
+        shopScroll = 0;
+        rebuildFilter();
     }
 
     private void rebuildFilter() {
         filtered.clear();
         String query = search == null ? "" : clean(search.getText()).toLowerCase(Locale.ROOT).trim();
         for (ShopOffer offer : bot.getOffers()) {
-            if (!matchesCategory(offer, category)) continue;
+            if (category != Category.ALL && actualCategory(offer) != category) continue;
             if (!query.isEmpty() && !matchesSearch(offer, query)) continue;
             filtered.add(offer);
         }
     }
 
     private boolean matchesSearch(ShopOffer offer, String query) {
-        String name = clean(offer.getDisplayName()).toLowerCase(Locale.ROOT);
-        if (name.contains(query)) return true;
+        if (clean(offer.getDisplayName()).toLowerCase(Locale.ROOT).contains(query)) return true;
         if (offer.getPrice().toPlainString().contains(query.replace(',', '.'))) return true;
-
         for (ShopComponent component : offer.getComponents()) {
             ItemStack stack = component.getStack();
-            String original = clean(stack.getDisplayName()).toLowerCase(Locale.ROOT);
-            if (original.contains(query)) return true;
-
-            try {
-                if (stack.getUnlocalizedName().toLowerCase(Locale.ROOT).contains(query)) return true;
-            } catch (Exception ignored) {}
-
+            if (clean(stack.getDisplayName()).toLowerCase(Locale.ROOT).contains(query)) return true;
+            if (stack.getUnlocalizedName().toLowerCase(Locale.ROOT).contains(query)) return true;
             if (stack.hasTagCompound() && stack.getTagCompound().hasKey("display", 10)) {
-                List<String> lore = stack.getTooltip(mc.thePlayer, false);
-                for (String line : lore) {
+                for (String line : stack.getTooltip(mc.thePlayer, false)) {
                     if (clean(line).toLowerCase(Locale.ROOT).contains(query)) return true;
                 }
             }
@@ -606,135 +456,93 @@ public final class ShopGui extends GuiScreen {
         return false;
     }
 
-    private boolean matchesCategory(ShopOffer offer, Category wanted) {
-        if (wanted == Category.ALL) return true;
-
-        ItemStack stack = offer.getDisplayStack();
-        if (stack == null) return wanted == Category.OTHER;
-
-        String key = (stack.getUnlocalizedName() + " " + clean(stack.getDisplayName())).toLowerCase(Locale.ROOT);
-
-        Category actual;
-        if (containsAny(key, "redstone", "repeater", "comparator", "hopper", "piston", "lever", "button", "pressure", "observer", "dispenser", "dropper")) {
-            actual = Category.REDSTONE;
-        } else if (containsAny(key, "sword", "pickaxe", "axe", "shovel", "hoe", "helmet", "chestplate", "leggings", "boots", "shears", "bow", "fishing")) {
-            actual = Category.TOOLS;
-        } else if (containsAny(key, "apple", "bread", "potato", "carrot", "beef", "pork", "chicken", "fish", "melon", "cookie", "cake", "food")) {
-            actual = Category.FOOD;
-        } else if (containsAny(key, "flower", "sapling", "leaves", "wool", "glass", "carpet", "banner", "skull", "painting", "frame", "torch", "fence")) {
-            actual = Category.DECO;
-        } else if (key.startsWith("tile.") || containsAny(key, "stone", "dirt", "sand", "brick", "planks", "log", "ore", "block")) {
-            actual = Category.BLOCKS;
-        } else {
-            actual = Category.OTHER;
-        }
-
-        return actual == wanted;
+    private int countFor(Category c) {
+        if (c == Category.ALL) return bot.getOffers().size();
+        int count = 0;
+        for (ShopOffer offer : bot.getOffers()) if (actualCategory(offer) == c) count++;
+        return count;
     }
 
-    private int countFor(Category c) {
-        int count = 0;
-        for (ShopOffer offer : bot.getOffers()) {
-            if (matchesCategory(offer, c)) count++;
-        }
-        return count;
+    private static Category actualCategory(ShopOffer offer) {
+        ItemStack stack = offer.getDisplayStack();
+        if (stack == null) return Category.OTHER;
+        String key = (stack.getUnlocalizedName() + " " + clean(stack.getDisplayName())).toLowerCase(Locale.ROOT);
+        if (contains(key, "redstone", "repeater", "comparator", "hopper", "piston", "lever", "button", "pressure", "dispenser", "dropper")) return Category.REDSTONE;
+        if (contains(key, "sword", "pickaxe", "axe", "shovel", "hoe", "helmet", "chestplate", "leggings", "boots", "shears", "bow", "fishing")) return Category.TOOLS;
+        if (contains(key, "apple", "bread", "potato", "carrot", "beef", "pork", "chicken", "fish", "melon", "cookie", "cake")) return Category.FOOD;
+        if (contains(key, "flower", "sapling", "leaves", "wool", "glass", "carpet", "banner", "skull", "painting", "frame", "torch", "fence")) return Category.DECO;
+        if (key.startsWith("tile.") || contains(key, "stone", "dirt", "sand", "brick", "planks", "log", "ore", "block")) return Category.BLOCKS;
+        return Category.OTHER;
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
-        try {
-            if (selected != null || confirmCheckout) {
-                if (keyCode == Keyboard.KEY_ESCAPE) {
-                    selected = null;
-                    confirmCheckout = false;
-                }
-                return;
-            }
-
-            if (keyCode == Keyboard.KEY_ESCAPE) {
-                mc.displayGuiScreen(null);
-                return;
-            }
-
-            if (search != null && search.textboxKeyTyped(typedChar, keyCode)) {
-                productScroll = 0;
-                rebuildFilter();
-            }
-        } catch (Exception ignored) {}
+        if (keyCode == Keyboard.KEY_ESCAPE) {
+            if (view == View.CONFIRM) view = View.CART;
+            else if (view == View.DETAIL) { selected = null; view = View.SHOP; }
+            else mc.displayGuiScreen(null);
+            return;
+        }
+        if (view == View.SHOP && search != null && search.textboxKeyTyped(typedChar, keyCode)) {
+            shopScroll = 0;
+            rebuildFilter();
+        }
     }
 
     @Override
-    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-        try {
-            if (mouseButton != 0) return;
-
-            if (selected == null && !confirmCheckout && search != null) {
-                search.mouseClicked(mouseX, mouseY, mouseButton);
-            }
-
-            for (int i = hits.size() - 1; i >= 0; i--) {
-                HitBox hit = hits.get(i);
-                if (hit.contains(mouseX, mouseY)) {
-                    hit.action.run();
-                    return;
-                }
-            }
-        } catch (Exception ignored) {}
+    protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (button != 0) return;
+        if (view == View.SHOP && search != null) search.mouseClicked(mouseX, mouseY, button);
+        for (int i = hits.size() - 1; i >= 0; i--) {
+            HitBox hit = hits.get(i);
+            if (hit.contains(mouseX, mouseY)) { hit.action.run(); return; }
+        }
     }
 
     @Override
-    public void handleMouseInput() {
-        try {
-            super.handleMouseInput();
-            int wheel = Mouse.getEventDWheel();
-            if (wheel == 0 || selected != null || confirmCheckout) return;
-
-            int mouseX = Mouse.getEventX() * width / mc.displayWidth;
-            int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-            int direction = wheel > 0 ? -1 : 1;
-            int cartLeft = guiRight - cartWidth;
-
-            if (mouseX >= cartLeft && mouseX < guiRight && mouseY >= guiTop && mouseY < guiBottom) {
-                cartScroll += direction;
-            } else if (mouseX > guiLeft && mouseX < cartLeft && mouseY >= guiTop && mouseY < guiBottom) {
-                productScroll += direction;
-            }
-        } catch (Exception ignored) {}
+    public void handleMouseInput() throws IOException {
+        super.handleMouseInput();
+        int wheel = Mouse.getEventDWheel();
+        if (wheel == 0) return;
+        int direction = wheel > 0 ? -1 : 1;
+        if (view == View.SHOP) shopScroll += direction;
+        else if (view == View.CART) cartScroll += direction;
+        else if (view == View.DETAIL) componentScroll += direction;
     }
 
-    private void primaryButton(int x, int y, int w, int h, String label, int mouseX, int mouseY, Runnable action) {
-        boolean hover = inside(mouseX, mouseY, x, y, w, h);
-        int fill = hover ? ACCENT_HOVER : ACCENT;
-        drawRect(x, y, x + w, y + h, fill);
-        drawRect(x, y, x + 3, y + h, hover ? 0xFFFF8795 : 0xFFB92F43);
-        drawCenteredString(fontRendererObj, "§f§l" + label, x + w / 2, y + (h - 8) / 2, TEXT);
+    private void button(int x, int y, int w, int h, String label, int mouseX, int mouseY, boolean primary, Runnable action) {
+        boolean hovered = inside(mouseX, mouseY, x, y, w, h);
+        int fill = primary ? (hovered ? ACCENT_HOVER : ACCENT) : (hovered ? HOVER : CARD);
+        panel(x, y, w, h, fill, primary ? ACCENT : BORDER);
+        centered("§f" + trim(label, w - 8), x, y + (h - 8) / 2, WHITE, w);
         hits.add(new HitBox(x, y, w, h, action));
-    }
-
-    private void secondaryButton(int x, int y, int w, int h, String label, int mouseX, int mouseY, Runnable action) {
-        boolean hover = inside(mouseX, mouseY, x, y, w, h);
-        panel(x, y, w, h, hover ? SURFACE_3 : SURFACE_2, hover ? 0xFF444C56 : BORDER);
-        drawCenteredString(fontRendererObj, hover ? "§f" + label : "§7" + label, x + w / 2, y + (h - 8) / 2, hover ? TEXT : MUTED);
-        hits.add(new HitBox(x, y, w, h, action));
-    }
-
-    private void smallButton(int x, int y, String label, int mouseX, int mouseY, Runnable action) {
-        boolean hover = inside(mouseX, mouseY, x, y, 20, 24);
-        panel(x, y, 20, 24, hover ? ACCENT_DARK : SURFACE_3, hover ? ACCENT : BORDER);
-        drawCenteredString(fontRendererObj, "§f" + label, x + 10, y + 8, TEXT);
-        hits.add(new HitBox(x, y, 20, 24, action));
     }
 
     private void panel(int x, int y, int w, int h, int fill, int border) {
         drawRect(x, y, x + w, y + h, border);
-        if (w > 2 && h > 2) {
-            drawRect(x + 1, y + 1, x + w - 1, y + h - 1, fill);
-        }
+        if (w > 2 && h > 2) drawRect(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+    }
+
+    private void scrollBar(int x, int y, int h, int visible, int total, int offset) {
+        if (h <= 0 || visible <= 0 || total <= visible) return;
+        drawRect(x, y, x + 2, y + h, BORDER);
+        int thumb = Math.max(16, h * visible / total);
+        int maxOffset = total - visible;
+        int thumbY = y + (h - thumb) * offset / maxOffset;
+        drawRect(x, thumbY, x + 2, thumbY + thumb, ACCENT);
+    }
+
+    private void summaryLine(String label, String value, int x, int y, int w) {
+        fontRendererObj.drawString("§7" + label, x, y, MUTED);
+        String shown = trim(value, Math.max(20, w - 110));
+        fontRendererObj.drawString("§f" + shown, x + w - fontRendererObj.getStringWidth(shown), y, WHITE);
+    }
+
+    private void centered(String value, int x, int y, int color, int w) {
+        drawCenteredString(fontRendererObj, value, x + w / 2, y, color);
     }
 
     private void renderItem(ItemStack stack, int x, int y, float scale) {
-        if (stack == null) return;
-
         GlStateManager.pushMatrix();
         try {
             GlStateManager.enableDepth();
@@ -755,85 +563,55 @@ public final class ShopGui extends GuiScreen {
     }
 
     private void toast(String message) {
-        toast = message;
-        toastUntil = System.currentTimeMillis() + 2500L;
+        notice = message;
+        noticeUntil = System.currentTimeMillis() + 2500L;
     }
 
-    private static String formatPrice(BigDecimal price) {
-        return PRICE.format(price) + "$";
-    }
+    private static String formatPrice(BigDecimal value) { return PRICE.format(value) + "$"; }
 
     private static String stockText(ShopOffer offer) {
-        int max = offer.getMaximumPurchases();
-        if (max == Integer.MAX_VALUE) return "§aUnbegrenzt verfügbar";
-        if (max <= 0) return "§cAusverkauft";
-        if (max <= 7) return "§eNur " + max + " verfügbar";
-        return "§a" + max + " verfügbar";
-    }
-
-    private String trimToWidth(String text, int maxWidth) {
-        if (fontRendererObj.getStringWidth(text) <= maxWidth) return text;
-        return fontRendererObj.trimStringToWidth(text, Math.max(0, maxWidth - fontRendererObj.getStringWidth("..."))) + "...";
+        int stock = offer.getMaximumPurchases();
+        if (stock == Integer.MAX_VALUE) return "§aUnbegrenzt verfügbar";
+        if (stock < 1) return "§cAusverkauft";
+        return (stock <= 7 ? "§eNur " : "§a") + stock + " verfügbar";
     }
 
     private String trim(String text, int maxWidth) {
-        return trimToWidth(clean(text), maxWidth);
+        String cleanText = clean(text);
+        if (fontRendererObj.getStringWidth(cleanText) <= maxWidth) return cleanText;
+        return fontRendererObj.trimStringToWidth(cleanText, Math.max(0, maxWidth - 8)) + "...";
     }
 
     private static String clean(String text) {
         if (text == null) return "";
-        String clean = EnumChatFormatting.getTextWithoutFormattingCodes(text);
-        return clean == null ? text : clean;
+        String plain = EnumChatFormatting.getTextWithoutFormattingCodes(text);
+        return plain == null ? text : plain;
     }
 
-    private static boolean containsAny(String value, String... needles) {
-        for (String needle : needles) {
-            if (value.contains(needle)) return true;
-        }
+    private static boolean contains(String value, String... names) {
+        for (String name : names) if (value.contains(name)) return true;
         return false;
     }
+
+    private static int clamp(int value, int minimum, int maximum) { return Math.max(minimum, Math.min(maximum, value)); }
 
     private static boolean inside(int mx, int my, int x, int y, int w, int h) {
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
     private enum Category {
-        ALL("Alle"),
-        BLOCKS("Blöcke"),
-        DECO("Deko"),
-        REDSTONE("Redstone"),
-        TOOLS("Tools"),
-        FOOD("Essen"),
-        OTHER("Sonstiges");
-
+        ALL("Alle"), BLOCKS("Blöcke"), DECO("Deko"), REDSTONE("Redstone"),
+        TOOLS("Werkzeuge"), FOOD("Essen"), OTHER("Sonstiges");
         final String label;
-
-        Category(String label) {
-            this.label = label;
-        }
+        Category(String label) { this.label = label; }
     }
 
     private static final class HitBox {
-        final int x;
-        final int y;
-        final int w;
-        final int h;
+        final int x, y, w, h;
         final Runnable action;
-
         HitBox(int x, int y, int w, int h, Runnable action) {
-            this.x = x;
-            this.y = y;
-            this.w = w;
-            this.h = h;
-            this.action = action;
+            this.x = x; this.y = y; this.w = w; this.h = h; this.action = action;
         }
-
-        boolean contains(int mx, int my) {
-            return inside(mx, my, x, y, w, h);
-        }
+        boolean contains(int mx, int my) { return inside(mx, my, x, y, w, h); }
     }
 }

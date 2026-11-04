@@ -6,13 +6,12 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ## Funktionen
 
-- moderne eigene Shop-GUI statt Chest-GUI
+- aufgeräumte, kompakte Ingame-Shop-GUI statt Chest-GUI; ohne überlagernde Popups
 - Suchfeld
-- automatische Kategorien
-- Produktkarten mit Item, Preis und Bestand
-- Detailansicht pro Angebot
-- Mengenwahl
-- Warenkorb mit +/- Mengensteuerung
+- Kategorien mit einfacher Pfeilnavigation
+- übersichtliche Angebotsliste mit Item, Preis und Bestand
+- schnelles Hinzufügen per +1 oder Detailansicht mit Mengenwahl
+- separater Warenkorb mit +/- Mengensteuerung
 - Gesamtpreis und Anzahl der Zahlungsvorgänge
 - Bestätigungsdialog vor dem Kauf
 - verzögerte `/pay`-Queue, damit mehrere Warenkorbpositionen sauber nacheinander bezahlt werden
@@ -21,6 +20,7 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 - signierter Abruf der Shopdaten über das Minecraft-Spielerzertifikat
 - Lagerbestandsprüfung auch bei Angeboten, die aus mehreren Item-Komponenten bestehen
 - gemeinsame Lagerbestände verschiedener Preisvarianten werden im Warenkorb berücksichtigt
+- Warenkorb wird bei automatischen Shopaktualisierungen auf aktuelle Lagerbestände abgestimmt
 - frei konfigurierbarer Hotkey über Minecraft → Optionen → Steuerung → ByteBitShop
 - RETURN/Enter als Standardtaste
 
@@ -28,7 +28,7 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ### LabyMod 3
 
-`ByteBitShop-1.0.2.jar` nach:
+`ByteBitShop-1.1.0.jar` nach:
 
 ```text
 .minecraft/LabyMod/addons-1.8/
@@ -38,7 +38,7 @@ Je nach Installation kann der Addon-Ordner auch direkt unter `.minecraft/addons-
 
 ### Forge 1.8.9
 
-`ByteBitShop-1.0.2.jar` nach:
+`ByteBitShop-1.1.0.jar` nach:
 
 ```text
 .minecraft/mods/
@@ -55,6 +55,16 @@ Benötigt Forge `1.8.9-11.15.1.2318` oder eine kompatible 1.8.9-Forge-Version.
 - `/babshop bots` — erkannte Bots / Status anzeigen
 - `/babshop cancel` — laufenden Checkout abbrechen
 - `/babshop config` — Config-Pfad anzeigen
+
+### Neues Shop-Menü
+
+1. Auf dem Shop-Bot stehen und mit Enter oder `/babshop` öffnen.
+2. Artikel suchen oder mit den Pfeilen die Kategorie wechseln.
+3. Mit `+1` direkt in den Warenkorb legen; auf die Zeile klicken, um Details und Menge zu wählen.
+4. Im **Warenkorb** Mengen über `+` und `-` ändern.
+5. **Zur Kasse** → Zusammenfassung prüfen → **Jetzt kaufen**. Escape führt aus Details und Bestätigung zurück.
+
+Das Menü passt seine Abstände bei kleineren Minecraft-Auflösungen automatisch an. Shop-Refreshes übernehmen keine veralteten Bestandsreferenzen.
 
 ## Config
 
