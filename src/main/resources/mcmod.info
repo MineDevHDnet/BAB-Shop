@@ -3,7 +3,7 @@
     "modid": "bytebitshop",
     "name": "ByteBitShop",
     "description": "Standalone Byte & Bit Botshop GUI for GrieferGames.",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "mcversion": "1.8.9",
     "authorList": ["MineDev_HD"],
     "clientSideOnly": true

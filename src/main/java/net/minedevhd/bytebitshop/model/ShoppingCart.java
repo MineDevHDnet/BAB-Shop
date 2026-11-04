@@ -62,6 +62,36 @@ public final class ShoppingCart {
         return list;
     }
 
+    /** Replaces old offer/stock references after a bot sync, keeping only affordable stock. */
+    public boolean reconcileOffers(List<ShopOffer> freshOffers) {
+        LinkedHashMap<ShopOffer, Integer> updated = new LinkedHashMap<ShopOffer, Integer>();
+        boolean reduced = false;
+        for (Map.Entry<ShopOffer, Integer> entry : quantities.entrySet()) {
+            ShopOffer replacement = null;
+            for (ShopOffer fresh : freshOffers) {
+                if (fresh.getPriceCents() == entry.getKey().getPriceCents()) {
+                    replacement = fresh;
+                    break;
+                }
+            }
+            if (replacement == null) {
+                reduced = true;
+                continue;
+            }
+            int quantity = entry.getValue();
+            while (quantity > 0) {
+                updated.put(replacement, quantity);
+                if (fitsStock(updated)) break;
+                updated.remove(replacement);
+                quantity--;
+            }
+            if (quantity == 0 || quantity != entry.getValue()) reduced = true;
+        }
+        quantities.clear();
+        quantities.putAll(updated);
+        return reduced;
+    }
+
     public void consumeLocally() {
         for (Map.Entry<ShopOffer, Integer> entry : quantities.entrySet()) {
             int quantity = entry.getValue();
