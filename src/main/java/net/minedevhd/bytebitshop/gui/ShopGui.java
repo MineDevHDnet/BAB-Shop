@@ -1,5 +1,6 @@
 package net.minedevhd.bytebitshop.gui;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -499,7 +500,7 @@ public final class ShopGui extends GuiScreen {
     }
 
     @Override
-    public void handleMouseInput() {
+    public void handleMouseInput() throws IOException {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
         if (wheel == 0) return;
