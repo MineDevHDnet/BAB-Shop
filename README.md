@@ -6,14 +6,15 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ## Funktionen
 
-- aufgeräumte, kompakte Ingame-Shop-GUI statt Chest-GUI; ohne überlagernde Popups
+- modernes Anthrazit-/Petrol-Design mit mintfarbenen Akzenten und kontrastreichen Schaltflächen
+- separate, kompakte Ingame-Ansichten für Shop, Warenkorb, Details und Bestätigung – keine überlagernden Popups
 - Suchfeld
-- Kategorien mit einfacher Pfeilnavigation
+- Kategorien als direkt anklickbare Filter (bei kleineren Fenstern per Pfeilnavigation)
 - übersichtliche Angebotsliste mit Item, Preis und Bestand
 - schnelles Hinzufügen per +1 oder Detailansicht mit Mengenwahl
 - separater Warenkorb mit +/- Mengensteuerung
 - Gesamtpreis und Anzahl der Zahlungsvorgänge
-- Bestätigungsdialog vor dem Kauf
+- übersichtliche Bestätigungsansicht vor dem Kauf; bei leerem Warenkorb bleibt „Zur Kasse“ deaktiviert
 - verzögerte `/pay`-Queue, damit mehrere Warenkorbpositionen sauber nacheinander bezahlt werden
 - `/babshop cancel` zum Abbrechen einer noch laufenden Queue
 - automatische Erkennung unterstützter Byte-&-Bit-Bots
@@ -59,8 +60,8 @@ Benötigt Forge `1.8.9-11.15.1.2318` oder eine kompatible 1.8.9-Forge-Version.
 ### Neues Shop-Menü
 
 1. Auf dem Shop-Bot stehen und mit Enter oder `/babshop` öffnen.
-2. Artikel suchen oder mit den Pfeilen die Kategorie wechseln.
-3. Mit `+1` direkt in den Warenkorb legen; auf die Zeile klicken, um Details und Menge zu wählen.
+2. Artikel suchen und über die Filterleiste (auf kleinen Fenstern mit Pfeilen) die Kategorie wählen.
+3. Mit **+ Hinzufügen** direkt einen Kaufvorgang in den Warenkorb legen; auf eine Produktkarte klicken, um Details und Menge zu wählen.
 4. Im **Warenkorb** Mengen über `+` und `-` ändern.
 5. **Zur Kasse** → Zusammenfassung prüfen → **Jetzt kaufen**. Escape führt aus Details und Bestätigung zurück.
 
