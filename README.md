@@ -6,12 +6,13 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ## Funktionen
 
-- modernes Anthrazit-/Petrol-Design mit mintfarbenen Akzenten und kontrastreichen Schaltflächen
-- separate, kompakte Ingame-Ansichten für Shop, Warenkorb, Details und Bestätigung – keine überlagernden Popups
+- Minecraft-typisches Shop-Menü mit übersichtlichem Item-Raster (statt langer Textkarten)
+- auf großen Fenstern bis zu 54 Produkte je Seite; kompakte Darstellung bei großer GUI-Skalierung
+- direkter Preis- und Bestandsüberblick im Auswahlbereich, vollständige Angaben im Item-Tooltip
+- separate Ansichten für Shop, Warenkorb, Details und Bestätigung – ohne Popup-Overlays
 - Suchfeld
 - Kategorien als direkt anklickbare Filter (bei kleineren Fenstern per Pfeilnavigation)
-- übersichtliche Angebotsliste mit Item, Preis und Bestand
-- schnelles Hinzufügen per +1 oder Detailansicht mit Mengenwahl
+- schnelles Hinzufügen per Shift-Klick oder Auswahlbereich; Detailansicht mit Mengenwahl
 - separater Warenkorb mit +/- Mengensteuerung
 - Gesamtpreis und Anzahl der Zahlungsvorgänge
 - übersichtliche Bestätigungsansicht vor dem Kauf; bei leerem Warenkorb bleibt „Zur Kasse“ deaktiviert
@@ -29,7 +30,7 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ### LabyMod 3
 
-`ByteBitShop-1.1.0.jar` nach:
+`ByteBitShop-1.2.0.jar` nach:
 
 ```text
 .minecraft/LabyMod/addons-1.8/
@@ -39,7 +40,7 @@ Je nach Installation kann der Addon-Ordner auch direkt unter `.minecraft/addons-
 
 ### Forge 1.8.9
 
-`ByteBitShop-1.1.0.jar` nach:
+`ByteBitShop-1.2.0.jar` nach:
 
 ```text
 .minecraft/mods/
@@ -60,10 +61,11 @@ Benötigt Forge `1.8.9-11.15.1.2318` oder eine kompatible 1.8.9-Forge-Version.
 ### Neues Shop-Menü
 
 1. Auf dem Shop-Bot stehen und mit Enter oder `/babshop` öffnen.
-2. Artikel suchen und über die Filterleiste (auf kleinen Fenstern mit Pfeilen) die Kategorie wählen.
-3. Mit **+ Hinzufügen** direkt einen Kaufvorgang in den Warenkorb legen; auf eine Produktkarte klicken, um Details und Menge zu wählen.
-4. Im **Warenkorb** Mengen über `+` und `-` ändern.
-5. **Zur Kasse** → Zusammenfassung prüfen → **Jetzt kaufen**. Escape führt aus Details und Bestätigung zurück.
+2. Artikel suchen und über die Kategorien (auf kleinen Fenstern mit Pfeilen) filtern.
+3. Im Item-Raster auf ein Produkt klicken, um es auszuwählen. Mit **Shift + Klick** direkt eine Zahlung zum Warenkorb hinzufügen.
+4. Im rechten Auswahlbereich Preis und Bestand prüfen und mit **+1 in den Korb** hinzufügen. Bei sehr schmalen Fenstern öffnet ein Klick direkt die Detailansicht.
+5. Im **Warenkorb** Mengen über `+` und `-` ändern.
+6. **Zur Kasse** → Zusammenfassung prüfen → **Jetzt kaufen**. Escape führt aus Details und Bestätigung zurück.
 
 Das Menü passt seine Abstände bei kleineren Minecraft-Auflösungen automatisch an. Shop-Refreshes übernehmen keine veralteten Bestandsreferenzen.
 
