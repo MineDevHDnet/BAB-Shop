@@ -248,7 +248,7 @@ public final class ByteBitApiClient {
     private static JsonObject getJson(String url) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setRequestMethod("GET");
-        connection.setRequestProperty("User-Agent", "ByteBitShop/1.0.2");
+        connection.setRequestProperty("User-Agent", "ByteBitShop/1.2.0");
         connection.setConnectTimeout(10_000);
         connection.setReadTimeout(10_000);
         if (connection.getResponseCode() >= 400)
@@ -259,7 +259,7 @@ public final class ByteBitApiClient {
     private static JsonObject postForm(String url, Map<String, String> form) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setRequestMethod("POST");
-        connection.setRequestProperty("User-Agent", "ByteBitShop/1.0.2");
+        connection.setRequestProperty("User-Agent", "ByteBitShop/1.2.0");
         connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
         connection.setConnectTimeout(10_000);
         connection.setReadTimeout(10_000);

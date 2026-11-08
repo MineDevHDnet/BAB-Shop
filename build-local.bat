@@ -19,7 +19,7 @@ call ".buildtools\gradle-2.14.1\bin\gradle.bat" --no-daemon clean build
 if errorlevel 1 goto :error
 
 echo.
-echo [FERTIG] JAR: build\libs\ByteBitShop-1.0.2.jar
+echo [FERTIG] JAR: build\libs\ByteBitShop-1.2.0.jar
 pause
 exit /b 0
 

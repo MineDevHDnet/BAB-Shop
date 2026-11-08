@@ -27,19 +27,25 @@ jobs:
         run: /tmp/gradle-2.14.1/bin/gradle --no-daemon --stacktrace clean build
       - name: Verify JAR
         run: |
-          JAR=build/libs/ByteBitShop-1.0.2.jar
+          JAR=build/libs/ByteBitShop-1.2.0.jar
           test -f "$JAR"
           unzip -t "$JAR"
           unzip -l "$JAR" | grep 'net/minedevhd/bytebitshop/ByteBitShopCore.class'
           sha256sum "$JAR"
-      - name: Publish v1.0.2 release
+      - name: Upload tested JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: ByteBitShop-1.2.0
+          path: build/libs/ByteBitShop-1.2.0.jar
+          if-no-files-found: error
+      - name: Publish v1.2.0 release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=v1.0.2
-          JAR=build/libs/ByteBitShop-1.0.2.jar
+          TAG=v1.2.0
+          JAR=build/libs/ByteBitShop-1.2.0.jar
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "ByteBitShop 1.0.2" --notes "ByteBitShop 1.0.2: 2.5s Payment-Delay, kompakteres rot/schwarzes GUI und Rendering-/Clipping-Fixes."
+            gh release create "$TAG" --title "ByteBitShop 1.2.0" --notes "Komplett neues Minecraft-Inventar-Design mit Item-Raster, Kategorien, Auswahlbereich, Warenkorb und sicherem Checkout."
           fi
           gh release upload "$TAG" "$JAR" --clobber

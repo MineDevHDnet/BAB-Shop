@@ -8,4 +8,4 @@ if [ ! -x .buildtools/gradle-2.14.1/bin/gradle ]; then
   rm .buildtools/gradle.zip
 fi
 .buildtools/gradle-2.14.1/bin/gradle --no-daemon clean build
-echo "JAR: build/libs/ByteBitShop-1.0.2.jar"
+echo "JAR: build/libs/ByteBitShop-1.2.0.jar"

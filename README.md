@@ -6,21 +6,23 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ## Funktionen
 
-- moderne eigene Shop-GUI statt Chest-GUI
+- Minecraft-typisches Shop-Menü mit übersichtlichem Item-Raster (statt langer Textkarten)
+- auf großen Fenstern bis zu 54 Produkte je Seite; kompakte Darstellung bei großer GUI-Skalierung
+- direkter Preis- und Bestandsüberblick im Auswahlbereich, vollständige Angaben im Item-Tooltip
+- separate Ansichten für Shop, Warenkorb, Details und Bestätigung – ohne Popup-Overlays
 - Suchfeld
-- automatische Kategorien
-- Produktkarten mit Item, Preis und Bestand
-- Detailansicht pro Angebot
-- Mengenwahl
-- Warenkorb mit +/- Mengensteuerung
+- Kategorien als direkt anklickbare Filter (bei kleineren Fenstern per Pfeilnavigation)
+- schnelles Hinzufügen per Shift-Klick oder Auswahlbereich; Detailansicht mit Mengenwahl
+- separater Warenkorb mit +/- Mengensteuerung
 - Gesamtpreis und Anzahl der Zahlungsvorgänge
-- Bestätigungsdialog vor dem Kauf
+- übersichtliche Bestätigungsansicht vor dem Kauf; bei leerem Warenkorb bleibt „Zur Kasse“ deaktiviert
 - verzögerte `/pay`-Queue, damit mehrere Warenkorbpositionen sauber nacheinander bezahlt werden
 - `/babshop cancel` zum Abbrechen einer noch laufenden Queue
 - automatische Erkennung unterstützter Byte-&-Bit-Bots
 - signierter Abruf der Shopdaten über das Minecraft-Spielerzertifikat
 - Lagerbestandsprüfung auch bei Angeboten, die aus mehreren Item-Komponenten bestehen
 - gemeinsame Lagerbestände verschiedener Preisvarianten werden im Warenkorb berücksichtigt
+- Warenkorb wird bei automatischen Shopaktualisierungen auf aktuelle Lagerbestände abgestimmt
 - frei konfigurierbarer Hotkey über Minecraft → Optionen → Steuerung → ByteBitShop
 - RETURN/Enter als Standardtaste
 
@@ -28,7 +30,7 @@ Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es be
 
 ### LabyMod 3
 
-`ByteBitShop-1.0.2.jar` nach:
+`ByteBitShop-1.2.0.jar` nach:
 
 ```text
 .minecraft/LabyMod/addons-1.8/
@@ -38,7 +40,7 @@ Je nach Installation kann der Addon-Ordner auch direkt unter `.minecraft/addons-
 
 ### Forge 1.8.9
 
-`ByteBitShop-1.0.2.jar` nach:
+`ByteBitShop-1.2.0.jar` nach:
 
 ```text
 .minecraft/mods/
@@ -55,6 +57,17 @@ Benötigt Forge `1.8.9-11.15.1.2318` oder eine kompatible 1.8.9-Forge-Version.
 - `/babshop bots` — erkannte Bots / Status anzeigen
 - `/babshop cancel` — laufenden Checkout abbrechen
 - `/babshop config` — Config-Pfad anzeigen
+
+### Neues Shop-Menü
+
+1. Auf dem Shop-Bot stehen und mit Enter oder `/babshop` öffnen.
+2. Artikel suchen und über die Kategorien (auf kleinen Fenstern mit Pfeilen) filtern.
+3. Im Item-Raster auf ein Produkt klicken, um es auszuwählen. Mit **Shift + Klick** direkt eine Zahlung zum Warenkorb hinzufügen.
+4. Im rechten Auswahlbereich Preis und Bestand prüfen und mit **+1 in den Korb** hinzufügen. Bei sehr schmalen Fenstern öffnet ein Klick direkt die Detailansicht.
+5. Im **Warenkorb** Mengen über `+` und `-` ändern.
+6. **Zur Kasse** → Zusammenfassung prüfen → **Jetzt kaufen**. Escape führt aus Details und Bestätigung zurück.
+
+Das Menü passt seine Abstände bei kleineren Minecraft-Auflösungen automatisch an. Shop-Refreshes übernehmen keine veralteten Bestandsreferenzen.
 
 ## Config
 
