@@ -7,7 +7,7 @@ Die GUI wurde eigenständig umgesetzt. Keine GrieferUtils-Laufzeitabhängigkeit.
 ## Funktionen im GrieferUtils-Stil
 
 - Klassische 7×7-Anzeigenfläche im Minecraft-Kistenstil mit 49 Angeboten pro Seite
-- Linke Einkaufsliste mit 7 einzeln anklickbaren Kaufvorgängen
+- Linke Einkaufsliste mit 7 Artikel-Slots (Paketkäufe belegen entsprechend mehrere Slots)
 - Suchfeld (Itemname, Originalname, Lore und Preis)
 - Scrollleiste und Mausrad für weitere Angebote
 - Ausverkaufte Angebote markiert, Lagerbestand direkt im Tooltip
@@ -31,7 +31,7 @@ Die heruntergeladene `ByteBitShop-1.1.0.jar` nach `.minecraft/LabyMod/addons-1.8
 ## Bedienung
 
 - **Enter** — Shop innerhalb einer unterstützten Bot-Zone öffnen
-- **Klick auf Angebot** — einen Kaufvorgang zur Einkaufsliste hinzufügen
+- **Klick auf Angebot** — den Kaufvorgang einschließlich aller zugehörigen Paketartikel zur Einkaufsliste hinzufügen
 - **Klick auf Einkaufsliste links** — einen Kaufvorgang entfernen
 - **Grüner Smaragd** — Einkaufsliste kaufen
 - **Suchfeld / Mausrad / Scrollleiste** — Produkte finden
