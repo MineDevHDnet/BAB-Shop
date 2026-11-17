@@ -53,8 +53,8 @@ public final class ClassicShopGui extends GuiScreen {
     private final ByteBitShopCore core;
     private final ShopBot bot;
     private final ShoppingCart cart = new ShoppingCart();
-    private final List<ShopOffer> filtered = new ArrayList<ShopOffer>();
-    private final List<ShopOffer> cartSlots = new ArrayList<ShopOffer>();
+    private final List<CatalogEntry> filtered = new ArrayList<CatalogEntry>();
+    private final List<CatalogEntry> cartSlots = new ArrayList<CatalogEntry>();
     private final ItemStack divider = new ItemStack(Blocks.stained_glass_pane, 1, 15);
     private final ItemStack empty = new ItemStack(Blocks.stained_glass_pane, 1, 14);
     private final ItemStack buy = new ItemStack(Items.emerald, 1);
@@ -123,19 +123,19 @@ public final class ClassicShopGui extends GuiScreen {
         String customTooltip = null;
         int hoverRow = slotRow(mouseY);
         int hoverCol = slotColumn(mouseX);
-        List<ShopOffer> currentCart = expandedCart();
+        List<CatalogEntry> currentCart = expandedCart();
 
         for (int row = 0; row < ROWS; row++) {
             // Column 0: shopping list, one purchase per slot.
             int cartX = slotX(0);
             int sy = slotY(row);
             if (row < currentCart.size()) {
-                ShopOffer offer = currentCart.get(row);
-                ItemStack stack = offer.getDisplayStack();
+                CatalogEntry entry = currentCart.get(row);
+                ItemStack stack = entry.component.getStack();
                 renderItem(stack, cartX, sy);
                 if (hoverRow == row && hoverCol == 0) {
                     tooltipStack = stack;
-                    tooltipOffer = offer;
+                    tooltipOffer = entry.offer;
                 }
             }
 
@@ -158,18 +158,18 @@ public final class ClassicShopGui extends GuiScreen {
             for (int col = 0; col < SHOP_COLUMNS; col++) {
                 int index = (scrollRow + row) * SHOP_COLUMNS + col;
                 if (index >= filtered.size()) continue;
-                ShopOffer offer = filtered.get(index);
+                CatalogEntry entry = filtered.get(index);
                 int x = slotX(col + 2);
-                ItemStack stack = offer.getDisplayStack();
+                ItemStack stack = entry.component.getStack();
                 if (stack == null) continue;
                 renderItem(stack, x, sy);
 
-                int available = remainingPurchases(offer);
+                int available = remainingPurchases(entry.offer);
                 if (available <= 0)
                     drawRect(x, sy, x + 16, sy + 16, 0x77E04C4C);
                 if (hoverRow == row && hoverCol == col + 2) {
                     tooltipStack = stack;
-                    tooltipOffer = offer;
+                    tooltipOffer = entry.offer;
                 }
             }
         }
@@ -249,63 +249,80 @@ public final class ClassicShopGui extends GuiScreen {
         if (search == null) return;
         String query = clean(search.getText()).toLowerCase(Locale.ROOT);
         filtered.clear();
-        for (ShopOffer offer : bot.getOffers())
-            if (matches(offer, query)) filtered.add(offer);
-        Collections.sort(filtered, new Comparator<ShopOffer>() {
+        for (ShopOffer offer : bot.getOffers()) {
+            for (ShopComponent component : offer.getComponents()) {
+                CatalogEntry entry = new CatalogEntry(offer, component);
+                if (matches(entry, query)) filtered.add(entry);
+            }
+        }
+        Collections.sort(filtered, new Comparator<CatalogEntry>() {
             @Override
-            public int compare(ShopOffer a, ShopOffer b) {
-                int ac = remainingPurchases(a), bc = remainingPurchases(b);
+            public int compare(CatalogEntry a, CatalogEntry b) {
+                int ac = remainingPurchases(a.offer), bc = remainingPurchases(b.offer);
                 if ((ac == 0) != (bc == 0)) return ac == 0 ? 1 : -1;
-                ItemStack ai = a.getDisplayStack(), bi = b.getDisplayStack();
-                int aid = ai == null ? Integer.MAX_VALUE : Item.getIdFromItem(ai.getItem());
-                int bid = bi == null ? Integer.MAX_VALUE : Item.getIdFromItem(bi.getItem());
+                ItemStack ai = a.component.getStack(), bi = b.component.getStack();
+                int aid = Item.getIdFromItem(ai.getItem());
+                int bid = Item.getIdFromItem(bi.getItem());
                 if (aid != bid) return Integer.compare(aid, bid);
-                int asub = ai == null ? 0 : ai.getItemDamage();
-                int bsub = bi == null ? 0 : bi.getItemDamage();
-                if (asub != bsub) return Integer.compare(asub, bsub);
-                int asize = ai == null ? 0 : ai.stackSize;
-                int bsize = bi == null ? 0 : bi.stackSize;
-                if (asize != bsize) return Integer.compare(asize, bsize);
-                return Long.compare(a.getPriceCents(), b.getPriceCents());
+                if (ai.getItemDamage() != bi.getItemDamage())
+                    return Integer.compare(ai.getItemDamage(), bi.getItemDamage());
+                if (ai.stackSize != bi.stackSize)
+                    return Integer.compare(ai.stackSize, bi.stackSize);
+                return Long.compare(a.offer.getPriceCents(), b.offer.getPriceCents());
             }
         });
         scrollRow = Math.min(scrollRow, maxScroll());
     }
 
-    private boolean matches(ShopOffer offer, String query) {
+    private boolean matches(CatalogEntry entry, String query) {
         if (query.isEmpty()) return true;
-        if (money(offer.getPrice()).toLowerCase(Locale.ROOT).contains(query)) return true;
-        for (ShopComponent component : offer.getComponents()) {
-            ItemStack item = component.getStack();
-            if (clean(item.getDisplayName()).toLowerCase(Locale.ROOT).contains(query)) return true;
-            if (clean(item.getUnlocalizedName()).toLowerCase(Locale.ROOT).contains(query)) return true;
-            if (clean(item.getItem().getItemStackDisplayName(item))
-                .toLowerCase(Locale.ROOT).contains(query)) return true;
-            if (item.hasTagCompound() && item.getTagCompound().hasKey("display", 10)) {
-                net.minecraft.nbt.NBTTagCompound display =
-                    item.getTagCompound().getCompoundTag("display");
-                if (display.hasKey("Lore", 9)) {
-                    net.minecraft.nbt.NBTTagList lore = display.getTagList("Lore", 8);
-                    for (int i = 0; i < lore.tagCount(); i++)
-                        if (clean(lore.getStringTagAt(i)).toLowerCase(Locale.ROOT)
-                            .contains(query)) return true;
-                }
+        if (money(entry.offer.getPrice()).toLowerCase(Locale.ROOT).contains(query)) return true;
+        ItemStack item = entry.component.getStack();
+        if (clean(item.getDisplayName()).toLowerCase(Locale.ROOT).contains(query)) return true;
+        if (clean(item.getUnlocalizedName()).toLowerCase(Locale.ROOT).contains(query)) return true;
+        if (clean(item.getItem().getItemStackDisplayName(item))
+            .toLowerCase(Locale.ROOT).contains(query)) return true;
+        if (item.hasTagCompound() && item.getTagCompound().hasKey("display", 10)) {
+            net.minecraft.nbt.NBTTagCompound display =
+                item.getTagCompound().getCompoundTag("display");
+            if (display.hasKey("Lore", 9)) {
+                net.minecraft.nbt.NBTTagList lore = display.getTagList("Lore", 8);
+                for (int i = 0; i < lore.tagCount(); i++)
+                    if (clean(lore.getStringTagAt(i)).toLowerCase(Locale.ROOT)
+                        .contains(query)) return true;
             }
         }
         return false;
     }
 
-    private List<ShopOffer> expandedCart() {
+    private List<CatalogEntry> expandedCart() {
         cartSlots.clear();
         for (ShoppingCart.Line line : cart.lines())
-            for (int i = 0; i < line.quantity; i++) cartSlots.add(line.offer);
+            for (int i = 0; i < line.quantity; i++)
+                for (ShopComponent component : line.offer.getComponents())
+                    cartSlots.add(new CatalogEntry(line.offer, component));
         return cartSlots;
     }
 
+    private int cartItemCount() {
+        int count = 0;
+        for (ShoppingCart.Line line : cart.lines())
+            count += line.quantity * line.offer.getComponents().size();
+        return count;
+    }
+
+    private static final class CatalogEntry {
+        final ShopOffer offer;
+        final ShopComponent component;
+        CatalogEntry(ShopOffer offer, ShopComponent component) {
+            this.offer = offer;
+            this.component = component;
+        }
+    }
+
     /**
-     * Additional reservations in the local cart are subtracted from every
-     * shared stock reference by ShoppingCart.setQuantity(). The stock from the
-     * last API response is never decremented until actual checkout.
+     * Remaining purchases calculated across shared inventory refs, including
+     * any already-reserved purchases in this GUI.
      */
     private int remainingPurchases(ShopOffer offer) {
         IdentityHashMap<StockRef, Long> reserved = new IdentityHashMap<StockRef, Long>();
@@ -366,9 +383,9 @@ public final class ClassicShopGui extends GuiScreen {
         if (row < 0 || col < 0) return;
 
         if (col == 0) {
-            List<ShopOffer> entries = expandedCart();
+            List<CatalogEntry> entries = expandedCart();
             if (row >= entries.size()) return;
-            ShopOffer offer = entries.get(row);
+            ShopOffer offer = entries.get(row).offer;
             cart.setQuantity(offer, cart.getQuantity(offer) - 1);
             applyFilter();
             return;
@@ -380,11 +397,11 @@ public final class ClassicShopGui extends GuiScreen {
         if (col < 2) return;
         int index = (scrollRow + row) * SHOP_COLUMNS + (col - 2);
         if (index < 0 || index >= filtered.size()) return;
-        if (cart.transactionCount() >= ROWS) {
-            message("§cEinkaufsliste voll (maximal 7 Käufe).");
+        ShopOffer offer = filtered.get(index).offer;
+        if (cartItemCount() + offer.getComponents().size() > ROWS) {
+            message("§cEinkaufsliste voll (maximal 7 Artikel).");
             return;
         }
-        ShopOffer offer = filtered.get(index);
         if (!cart.add(offer, 1)) message("§cNicht genügend Lagerbestand.");
         applyFilter();
     }
