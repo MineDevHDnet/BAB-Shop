@@ -1,97 +1,48 @@
-# ByteBitShop
+# ByteBitShop 1.1.0
 
-Eigenständige Minecraft-1.8.9-Client-Erweiterung für unterstützte Byte-&-Bit-Botshops auf GrieferGames.
+Eigenständiges LabyMod-3-Addon und Forge-1.8.9-Mod für **Byte-&-Bit-Botshops auf GrieferGames**, jetzt mit einer **klassischen, GrieferUtils-artigen Botshop-GUI**.
 
-Die JAR ist als **LabyMod-3-Addon** und als **Forge-1.8.9-Mod** aufgebaut. Es besteht keine Laufzeit-Abhängigkeit zu GrieferUtils.
+Die GUI wurde eigenständig umgesetzt. Keine GrieferUtils-Laufzeitabhängigkeit.
 
-## Funktionen
+## Funktionen im GrieferUtils-Stil
 
-- moderne eigene Shop-GUI statt Chest-GUI
-- Suchfeld
-- automatische Kategorien
-- Produktkarten mit Item, Preis und Bestand
-- Detailansicht pro Angebot
-- Mengenwahl
-- Warenkorb mit +/- Mengensteuerung
-- Gesamtpreis und Anzahl der Zahlungsvorgänge
-- Bestätigungsdialog vor dem Kauf
-- verzögerte `/pay`-Queue, damit mehrere Warenkorbpositionen sauber nacheinander bezahlt werden
-- `/babshop cancel` zum Abbrechen einer noch laufenden Queue
-- automatische Erkennung unterstützter Byte-&-Bit-Bots
-- signierter Abruf der Shopdaten über das Minecraft-Spielerzertifikat
-- Lagerbestandsprüfung auch bei Angeboten, die aus mehreren Item-Komponenten bestehen
-- gemeinsame Lagerbestände verschiedener Preisvarianten werden im Warenkorb berücksichtigt
-- frei konfigurierbarer Hotkey über Minecraft → Optionen → Steuerung → ByteBitShop
-- RETURN/Enter als Standardtaste
+- Klassische 7×7-Anzeigenfläche im Minecraft-Kistenstil mit 49 Angeboten pro Seite
+- Linke Einkaufsliste mit 7 einzeln anklickbaren Kaufvorgängen
+- Suchfeld (Itemname, Originalname, Lore und Preis)
+- Scrollleiste und Mausrad für weitere Angebote
+- Ausverkaufte Angebote markiert, Lagerbestand direkt im Tooltip
+- Verfügbarkeitsangaben (verfügbar / knapp / ausverkauft)
+- Gleicher Preis gruppiert mehrere Item-Komponenten zu einem Kaufvorgang
+- Warenkorbsumme im Titel und grüner Kaufknopf in der mittleren Trennspalte
+- Hotkey **Enter** sowie Hinweis als Bossbar bei Erkennung einer Bot-Zone
+- Erkennung über die von GrieferUtils verwendeten BotSources und die signierte Byte-&-Bit-API
+
+## Bewusst sicherere Unterschiede
+
+- Jede Zahlung wird über eine Warteschlange mit **2,5 Sekunden Pause** an den Minecraft-Chat gesendet, statt alle /pay-Befehle auf einmal auszuführen.
+- Abbrechen der noch ausstehenden Zahlungen mit `/babshop cancel`. Bereits gesendete Zahlungen lassen sich nicht zurücknehmen.
+- Gemeinsame Lagerbestände über mehrere Preisvarianten werden korrekt mit den lokal reservierten Mengen verrechnet.
+- Keine Abhängigkeit von der GrieferUtils-Kontostandsanzeige; die GUI kann kein Guthaben garantieren.
 
 ## Installation
 
-### LabyMod 3
-
-`ByteBitShop-1.0.2.jar` nach:
-
-```text
-.minecraft/LabyMod/addons-1.8/
-```
-
-Je nach Installation kann der Addon-Ordner auch direkt unter `.minecraft/addons-1.8/` liegen.
-
-### Forge 1.8.9
-
-`ByteBitShop-1.0.2.jar` nach:
-
-```text
-.minecraft/mods/
-```
-
-Benötigt Forge `1.8.9-11.15.1.2318` oder eine kompatible 1.8.9-Forge-Version.
+Die heruntergeladene `ByteBitShop-1.1.0.jar` nach `.minecraft/LabyMod/addons-1.8/` für LabyMod 3 oder nach `.minecraft/mods/` für Forge 1.8.9 legen. Nicht beide Varianten gleichzeitig installieren.
 
 ## Bedienung
 
-- `RETURN` / `Enter` — Shop des erkannten Bots öffnen (Standard)
-- Hotkey frei änderbar unter `Optionen → Steuerung → ByteBitShop`
+- **Enter** — Shop innerhalb einer unterstützten Bot-Zone öffnen
+- **Klick auf Angebot** — einen Kaufvorgang zur Einkaufsliste hinzufügen
+- **Klick auf Einkaufsliste links** — einen Kaufvorgang entfernen
+- **Grüner Smaragd** — Einkaufsliste kaufen
+- **Suchfeld / Mausrad / Scrollleiste** — Produkte finden
 - `/babshop` — Shop öffnen
 - `/babshop refresh` — Botquellen neu laden
-- `/babshop bots` — erkannte Bots / Status anzeigen
-- `/babshop cancel` — laufenden Checkout abbrechen
-- `/babshop config` — Config-Pfad anzeigen
+- `/babshop bots` — bekannte Bots anzeigen
+- `/babshop cancel` — ausstehende Zahlungen abbrechen
+- `/babshop config` — Konfigurationspfad
 
-## Config
+Konfiguration: `.minecraft/config/bytebitshop.json`.
 
-Datei:
+## Quellcode und Lizenz
 
-```text
-.minecraft/config/bytebitshop.json
-```
-
-Wichtige Optionen:
-
-```json
-{
-  "staticApiUrl": "https://api.grieferutils.l3g7.dev/v6/",
-  "additionalBotSources": [],
-  "openKeyCode": 28,
-  "paymentDelayMs": 2500,
-  "requireBotZone": true,
-  "showHudHint": true,
-  "sourceRefreshSeconds": 300,
-  "botSyncSeconds": 20
-}
-```
-
-`additionalBotSources` ermöglicht zusätzliche Byte-&-Bit-kompatible BotSource-URLs, ohne den Code neu zu bauen.
-
-## Technischer Ablauf
-
-1. unterstützte Bot-UUIDs werden aus den konfigurierten BotSources geladen;
-2. erscheint ein unterstützter Spieler/Bot in der Welt, werden dessen Shopdaten synchronisiert;
-3. `item/getItems/<botUuid>` liefert Zone, Items, Preise und Lagerbestand;
-4. Angebote werden intern nach exaktem Preis gruppiert, weil eine Zahlung mehrere Item-Komponenten auslösen kann;
-5. der Warenkorb reserviert den gemeinsamen Lagerbestand lokal;
-6. beim Checkout wird pro Kaufvorgang genau ein `/pay <bot> <preis>` gesendet.
-
-Das Minecraft-Session-Token wird **nicht gespeichert**. Es wird ausschließlich zur Laufzeit genutzt, um über `api.minecraftservices.com/player/certificates` das benötigte Spielerschlüssel-Zertifikat abzurufen.
-
-## Grundlage / Kompatibilität
-
-Die Byte-&-Bit-Protokollkompatibilität wurde anhand der öffentlich einsehbaren Apache-2.0-Implementierung in `L3g7/GrieferUtils` nachvollzogen. ByteBitShop verwendet eigenen Code und bindet GrieferUtils nicht als Bibliothek ein.
+Die Protokollkompatibilität sowie die klassische Gestaltung orientieren sich an der öffentlich einsehbaren Apache-2.0-Implementierung unter [L3g7/GrieferUtils](https://github.com/l3g7/GrieferUtils). Dieses Repository implementiert seine GUI selbst und bindet keine GrieferUtils-Klassen ein.
