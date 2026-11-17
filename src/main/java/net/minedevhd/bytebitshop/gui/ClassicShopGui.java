@@ -5,6 +5,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +23,7 @@ import net.minedevhd.bytebitshop.model.ShopBot;
 import net.minedevhd.bytebitshop.model.ShopComponent;
 import net.minedevhd.bytebitshop.model.ShopOffer;
 import net.minedevhd.bytebitshop.model.ShoppingCart;
+import net.minedevhd.bytebitshop.model.StockRef;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
@@ -306,20 +308,32 @@ public final class ClassicShopGui extends GuiScreen {
      * last API response is never decremented until actual checkout.
      */
     private int remainingPurchases(ShopOffer offer) {
-        // Stock validation accounts for all shared StockRefs, including bundles.
-        if (offer.getMaximumPurchases() <= 0) return 0;
-        int count = 0;
-        int max = Math.min(128, offer.getMaximumPurchases());
-        int old = cart.getQuantity(offer);
-        for (int n = old + 1; n <= old + max; n++) {
-            if (cart.setQuantity(offer, n)) {
-                count++;
-            } else {
-                break;
+        IdentityHashMap<StockRef, Long> reserved = new IdentityHashMap<StockRef, Long>();
+        for (ShoppingCart.Line line : cart.lines()) {
+            for (ShopComponent component : line.offer.getComponents()) {
+                StockRef stock = component.getStock();
+                if (stock.get() == Integer.MAX_VALUE) continue;
+                Long old = reserved.get(stock);
+                reserved.put(stock, (old == null ? 0L : old)
+                    + (long) component.amountPerPurchase() * line.quantity);
             }
         }
-        cart.setQuantity(offer, old);
-        return offer.isUnlimited() && count == max ? Integer.MAX_VALUE : count;
+        IdentityHashMap<StockRef, Long> required = new IdentityHashMap<StockRef, Long>();
+        for (ShopComponent component : offer.getComponents()) {
+            StockRef stock = component.getStock();
+            int amount = component.amountPerPurchase();
+            if (amount <= 0 || stock.get() == Integer.MAX_VALUE) continue;
+            Long old = required.get(stock);
+            required.put(stock, (old == null ? 0L : old) + amount);
+        }
+        int available = Integer.MAX_VALUE;
+        for (StockRef stock : required.keySet()) {
+            long need = required.get(stock);
+            long used = reserved.containsKey(stock) ? reserved.get(stock) : 0L;
+            long remaining = Math.max(0L, (long) stock.get() - used);
+            available = Math.min(available, (int) Math.min(Integer.MAX_VALUE, remaining / need));
+        }
+        return available;
     }
 
     private int slotRow(int mouseY) {
