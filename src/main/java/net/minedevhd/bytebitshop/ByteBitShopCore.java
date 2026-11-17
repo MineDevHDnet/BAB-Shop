@@ -2,6 +2,7 @@ package net.minedevhd.bytebitshop;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.boss.BossStatus;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
@@ -14,7 +15,7 @@ import net.minedevhd.bytebitshop.api.ByteBitApiClient;
 import net.minedevhd.bytebitshop.api.NtpClock;
 import net.minedevhd.bytebitshop.api.PlayerCertificateService;
 import net.minedevhd.bytebitshop.command.ByteBitShopCommand;
-import net.minedevhd.bytebitshop.gui.ShopGui;
+import net.minedevhd.bytebitshop.gui.ClassicShopGui;
 import net.minedevhd.bytebitshop.model.ShopBot;
 import net.minedevhd.bytebitshop.runtime.BotRegistry;
 import net.minedevhd.bytebitshop.runtime.PaymentQueue;
@@ -22,7 +23,7 @@ import net.minedevhd.bytebitshop.util.Chat;
 import org.lwjgl.input.Keyboard;
 
 public final class ByteBitShopCore {
-    public static final String VERSION = "1.0.2";
+    public static final String VERSION = "1.1.0";
     private static final ByteBitShopCore INSTANCE = new ByteBitShopCore();
 
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -86,7 +87,9 @@ public final class ByteBitShopCore {
         ShopBot bot = registry.getActiveBot();
         if (bot == null) return;
         String keyName = Keyboard.getKeyName(openKey == null ? config.openKeyCode : openKey.getKeyCode());
-        event.left.add("§bByte & Bit§7: §f" + bot.getName() + " §8[§b" + keyName + "§8]");
+        BossStatus.bossName = "Botshop-Gui verfügbar! [" + keyName + "]";
+        BossStatus.statusBarTime = 1;
+        BossStatus.healthScale = 0.0F;
     }
 
     public void openNearbyShop() {
@@ -99,7 +102,7 @@ public final class ByteBitShopCore {
 
         ShopBot active = registry.getActiveBot();
         if (active != null && !active.getOffers().isEmpty()) {
-            mc.displayGuiScreen(new ShopGui(this, active));
+            mc.displayGuiScreen(new ClassicShopGui(this, active));
             return;
         }
 
@@ -125,7 +128,7 @@ public final class ByteBitShopCore {
                     Chat.error("Shopdaten gefunden, aber du stehst nicht in der Bot-Zone.");
                     return;
                 }
-                mc.displayGuiScreen(new ShopGui(ByteBitShopCore.this, nearest));
+                mc.displayGuiScreen(new ClassicShopGui(ByteBitShopCore.this, nearest));
             }
         });
     }
